@@ -325,6 +325,23 @@ namespace SistemaCaminosalDeporte.Presentacion
             lblTotal.Text = Tema.Dinero(sub - desc);
         }
 
+        private void InitializeComponent()
+        {
+            this.SuspendLayout();
+            // 
+            // UcVentas
+            // 
+            this.Name = "UcVentas";
+            this.Load += new System.EventHandler(this.UcVentas_Load);
+            this.ResumeLayout(false);
+
+        }
+
+        private void UcVentas_Load(object sender, EventArgs e)
+        {
+
+        }
+
         private void MarcarPago(int indice)
         {
             for (int i = 0; i < botonesPago.Count; i++) Tema.Marcar(botonesPago[i], i == indice);

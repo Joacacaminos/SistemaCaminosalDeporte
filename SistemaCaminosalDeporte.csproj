@@ -34,6 +34,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -46,6 +47,16 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Datos\MovimientoStockDatos.cs" />
+    <Compile Include="Datos\ProductoDatos.cs" />
+    <Compile Include="Datos\RepositorioXml.cs" />
+    <Compile Include="Datos\UsuarioDatos.cs" />
+    <Compile Include="Datos\VentaDatos.cs" />
+    <Compile Include="Entidades\DetalleVenta.cs" />
+    <Compile Include="Entidades\MovimientoStock.cs" />
+    <Compile Include="Entidades\Producto.cs" />
+    <Compile Include="Entidades\Usuario.cs" />
+    <Compile Include="Entidades\Venta.cs" />
     <Compile Include="Presentacion\FrmLogin.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -61,6 +72,9 @@
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <EmbeddedResource Include="Presentacion\UcVentas.resx">
+      <DependentUpon>UcVentas.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
@@ -82,6 +96,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Scripts\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
