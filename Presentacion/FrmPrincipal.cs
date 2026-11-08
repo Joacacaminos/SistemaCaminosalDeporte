@@ -1,13 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Globalization;
 using System.Windows.Forms;
 using System.Linq;
+using SistemaCaminosalDeporte.Entidades;
 using SistemaCaminosalDeporte.Negocio;
 
 namespace SistemaCaminosalDeporte.Presentacion
 {
-    public class FrmPrincipal : Form  
+    public partial class FrmPrincipal : Form  
     {
         private static readonly string[] Secciones =
             { "Inicio", "Ventas", "Productos", "Stock", "Reportes", "Usuarios", "Configuración" };
@@ -39,7 +41,492 @@ namespace SistemaCaminosalDeporte.Presentacion
 
             Navegar("Inicio");
         }
+    }
 
+internal sealed class UcProductosReales : UserControl
+{
+    private readonly ProductoNegocio negocio = new ProductoNegocio();
+    private readonly DataGridView grilla;
+
+    public UcProductosReales()
+    {
+        BackColor = Tema.Fondo;
+        grilla = Tema.NuevaGrilla();
+        grilla.Dock = DockStyle.Fill;
+        foreach (var columna in new[] { "Id", "Nombre", "Tipo", "Talle", "Color", "Precio", "Stock" })
+            grilla.Columns.Add(columna, columna);
+        Controls.Add(grilla);
+
+        var barra = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.Transparent };
+        AgregarBoton(barra, "Nuevo producto", true, NuevoProducto);
+        AgregarBoton(barra, "Editar", false, EditarProducto);
+        AgregarBoton(barra, "Eliminar", false, EliminarProducto);
+        Controls.Add(barra);
+        CargarProductos();
+    }
+
+    private static void AgregarBoton(FlowLayoutPanel barra, string texto, bool primario, EventHandler accion)
+    {
+        var boton = Tema.Boton(texto, primario);
+        boton.AutoSize = true;
+        boton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        boton.Padding = new Padding(10, 0, 10, 0);
+        boton.Margin = new Padding(0, 0, 8, 0);
+        boton.Click += accion;
+        barra.Controls.Add(boton);
+    }
+
+    private void CargarProductos()
+    {
+        var resultado = negocio.Listar();
+        if (!resultado.Exito)
+        {
+            MessageBox.Show(resultado.Mensaje, "Productos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        grilla.Rows.Clear();
+        foreach (var producto in resultado.Valor.OrderBy(x => x.Nombre))
+        {
+            var fila = grilla.Rows[grilla.Rows.Add(
+                producto.idProducto,
+                producto.Nombre,
+                producto.Tipo,
+                producto.Talle,
+                producto.Color,
+                Tema.Dinero(producto.Precio),
+                producto.Stock)];
+            fila.Tag = producto;
+        }
+    }
+
+    private Producto ProductoSeleccionado()
+    {
+        var fila = grilla.CurrentRow;
+        return fila == null ? null : fila.Tag as Producto;
+    }
+
+    private void NuevoProducto(object sender, EventArgs e)
+    {
+        using (var formulario = new FrmProductoModal(null))
+        {
+            if (formulario.ShowDialog(FindForm()) != DialogResult.OK)
+                return;
+
+            var resultado = negocio.Alta(formulario.Producto);
+            MostrarResultado(resultado, "Nuevo producto");
+            if (resultado.Exito)
+                CargarProductos();
+        }
+    }
+
+    private void EditarProducto(object sender, EventArgs e)
+    {
+        var seleccionado = ProductoSeleccionado();
+        if (seleccionado == null)
+        {
+            MessageBox.Show("Seleccioná un producto para editar.", "Productos",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        using (var formulario = new FrmProductoModal(seleccionado))
+        {
+            if (formulario.ShowDialog(FindForm()) != DialogResult.OK)
+                return;
+
+            var resultado = negocio.Modificar(formulario.Producto);
+            MostrarResultado(resultado, "Editar producto");
+            if (resultado.Exito)
+                CargarProductos();
+        }
+    }
+
+    private void EliminarProducto(object sender, EventArgs e)
+    {
+        var seleccionado = ProductoSeleccionado();
+        if (seleccionado == null)
+        {
+            MessageBox.Show("Seleccioná un producto para eliminar.", "Productos",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        var confirmar = MessageBox.Show(
+            "¿Querés dar de baja el producto \"" + seleccionado.Nombre + "\"?",
+            "Eliminar producto", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (confirmar != DialogResult.Yes)
+            return;
+
+        var resultado = negocio.BajaLogica(seleccionado.idProducto);
+        MostrarResultado(resultado, "Eliminar producto");
+        if (resultado.Exito)
+            CargarProductos();
+    }
+
+    private static void MostrarResultado(Resultado resultado, string titulo)
+    {
+        if (!resultado.Exito)
+            MessageBox.Show(resultado.Mensaje, titulo, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        else
+            MessageBox.Show(resultado.Mensaje, titulo, MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private static void MostrarResultado(Resultado<Producto> resultado, string titulo)
+    {
+        if (!resultado.Exito)
+            MessageBox.Show(resultado.Mensaje, titulo, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        else
+            MessageBox.Show(resultado.Mensaje, titulo, MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+}
+
+internal sealed class UcStockReal : UserControl
+{
+    private readonly ProductoNegocio productos = new ProductoNegocio();
+    private readonly StockNegocio stock = new StockNegocio();
+    private readonly DataGridView grilla;
+    private readonly Label lblPrendas;
+    private readonly Label lblBajo;
+    private readonly Label lblSinStock;
+
+    public UcStockReal()
+    {
+        BackColor = Tema.Fondo;
+        grilla = Tema.NuevaGrilla();
+        grilla.Dock = DockStyle.Fill;
+        foreach (var columna in new[] { "Producto", "Talle", "Color", "Stock", "Estado" })
+            grilla.Columns.Add(columna, columna);
+        grilla.CellFormatting += ColorearEstado;
+        Controls.Add(grilla);
+
+        var barra = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.Transparent };
+        AgregarBoton(barra, "Registrar ingreso de mercadería", true, IngresarMercaderia);
+        AgregarBoton(barra, "Ajustar cantidad", false, AjustarCantidad);
+        Controls.Add(barra);
+
+        var resumen = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 104, BackColor = Color.Transparent };
+        lblPrendas = AgregarResumen(resumen, "Prendas en stock");
+        lblBajo = AgregarResumen(resumen, "Productos con stock bajo");
+        lblSinStock = AgregarResumen(resumen, "Sin stock");
+        Controls.Add(resumen);
+        CargarStock();
+    }
+
+    private static void AgregarBoton(FlowLayoutPanel barra, string texto, bool primario, EventHandler accion)
+    {
+        var boton = Tema.Boton(texto, primario);
+        boton.AutoSize = true;
+        boton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        boton.Padding = new Padding(10, 0, 10, 0);
+        boton.Margin = new Padding(0, 0, 8, 0);
+        boton.Click += accion;
+        barra.Controls.Add(boton);
+    }
+
+    private static Label AgregarResumen(FlowLayoutPanel fila, string titulo)
+    {
+        var tarjeta = Tema.NuevaTarjeta();
+        tarjeta.Size = new Size(250, 84);
+        tarjeta.Margin = new Padding(0, 0, 12, 12);
+        tarjeta.Controls.Add(Tema.Etiqueta(titulo, 9.5f, false, Tema.Gris));
+        tarjeta.Controls[0].Location = new Point(14, 12);
+        var valor = Tema.Etiqueta("0", 18, true, Tema.Verde);
+        valor.Location = new Point(14, 36);
+        tarjeta.Controls.Add(valor);
+        fila.Controls.Add(tarjeta);
+        return valor;
+    }
+
+    private void CargarStock()
+    {
+        var resultado = productos.Listar();
+        if (!resultado.Exito)
+        {
+            MessageBox.Show(resultado.Mensaje, "Stock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var lista = resultado.Valor.OrderBy(x => x.Nombre).ToList();
+        grilla.Rows.Clear();
+        foreach (var producto in lista)
+        {
+            var fila = grilla.Rows[grilla.Rows.Add(
+                producto.Nombre,
+                producto.Talle,
+                producto.Color,
+                producto.Stock,
+                Estado(producto.Stock))];
+            fila.Tag = producto;
+        }
+
+        lblPrendas.Text = lista.Sum(x => x.Stock).ToString();
+        lblBajo.Text = lista.Count(x => x.Stock > 0 && x.Stock <= 5).ToString();
+        lblSinStock.Text = lista.Count(x => x.Stock == 0).ToString();
+    }
+
+    private static string Estado(int cantidad)
+    {
+        if (cantidad <= 0) return "Sin stock";
+        return cantidad <= 5 ? "Bajo" : "OK";
+    }
+
+    private void ColorearEstado(object sender, DataGridViewCellFormattingEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.Value == null || grilla.Columns[e.ColumnIndex].Name != "Estado")
+            return;
+        var estado = e.Value.ToString();
+        e.CellStyle.ForeColor = estado == "OK" ? Tema.Verde : Tema.Rojo;
+    }
+
+    private Producto ProductoSeleccionado()
+    {
+        var fila = grilla.CurrentRow;
+        return fila == null ? null : fila.Tag as Producto;
+    }
+
+    private void IngresarMercaderia(object sender, EventArgs e)
+    {
+        var resultado = MostrarOperacion("Registrar ingreso de mercadería", "Cantidad a ingresar", false);
+        if (resultado == null)
+            return;
+        MostrarResultado(resultado, "Stock");
+        if (resultado.Exito)
+            CargarStock();
+    }
+
+    private void AjustarCantidad(object sender, EventArgs e)
+    {
+        var seleccionado = ProductoSeleccionado();
+        if (seleccionado == null)
+        {
+            MessageBox.Show("Seleccioná un producto para ajustar.", "Stock",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        var resultado = MostrarOperacion("Ajustar cantidad", "Nueva cantidad", true, seleccionado);
+        if (resultado == null)
+            return;
+        MostrarResultado(resultado, "Stock");
+        if (resultado.Exito)
+            CargarStock();
+    }
+
+    private Resultado<Producto> MostrarOperacion(string titulo, string etiqueta, bool ajuste, Producto seleccionado = null)
+    {
+        var disponibles = productos.Listar();
+        if (!disponibles.Exito)
+        {
+            MessageBox.Show(disponibles.Mensaje, "Stock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return null;
+        }
+
+        using (var formulario = new FrmOperacionStock(disponibles.Valor, etiqueta, seleccionado))
+        {
+            if (formulario.ShowDialog(FindForm()) != DialogResult.OK)
+                return null;
+            if (SesionActual.Usuario == null)
+                return Resultado<Producto>.Error("No hay una sesión de usuario activa.");
+
+            return ajuste
+                ? stock.AjustarCantidad(formulario.IdProducto, formulario.Cantidad, SesionActual.Usuario.idUsuario)
+                : stock.IngresarMercaderia(formulario.IdProducto, formulario.Cantidad, SesionActual.Usuario.idUsuario);
+        }
+    }
+
+    private static void MostrarResultado(Resultado<Producto> resultado, string titulo)
+    {
+        MessageBox.Show(resultado.Mensaje, titulo, MessageBoxButtons.OK,
+            resultado.Exito ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+    }
+}
+
+internal sealed class FrmProductoModal : Form
+{
+    private readonly TextBox txtNombre = Tema.Caja("Nombre");
+    private readonly TextBox txtTipo = Tema.Caja("Tipo");
+    private readonly TextBox txtTalle = Tema.Caja("Talle");
+    private readonly TextBox txtColor = Tema.Caja("Color");
+    private readonly TextBox txtPrecio = Tema.Caja("Precio");
+    private readonly TextBox txtStock = Tema.Caja("Stock inicial");
+    private readonly int idProducto;
+
+    public Producto Producto { get; private set; }
+
+    public FrmProductoModal(Producto existente)
+    {
+        idProducto = existente == null ? 0 : existente.idProducto;
+        Text = existente == null ? "Nuevo producto" : "Editar producto";
+        ClientSize = new Size(430, 410);
+        StartPosition = FormStartPosition.CenterParent;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        BackColor = Tema.Fondo;
+
+        AgregarCampo("Nombre", txtNombre, 20);
+        AgregarCampo("Tipo", txtTipo, 68);
+        AgregarCampo("Talle", txtTalle, 116);
+        AgregarCampo("Color", txtColor, 164);
+        AgregarCampo("Precio", txtPrecio, 212);
+        AgregarCampo("Stock inicial", txtStock, 260);
+        if (existente != null)
+        {
+            txtNombre.Text = existente.Nombre;
+            txtTipo.Text = existente.Tipo;
+            txtTalle.Text = existente.Talle;
+            txtColor.Text = existente.Color;
+            txtPrecio.Text = existente.Precio.ToString("0.##", Tema.Ar);
+            txtStock.Text = existente.Stock.ToString();
+        }
+
+        var cancelar = Tema.Boton("Cancelar", false);
+        cancelar.SetBounds(210, 340, 95, 40);
+        cancelar.DialogResult = DialogResult.Cancel;
+        Controls.Add(cancelar);
+        var guardar = Tema.Boton("Guardar");
+        guardar.SetBounds(315, 340, 95, 40);
+        guardar.Click += Guardar;
+        Controls.Add(guardar);
+        AcceptButton = guardar;
+        CancelButton = cancelar;
+    }
+
+    private void AgregarCampo(string etiqueta, TextBox caja, int y)
+    {
+        var label = Tema.Etiqueta(etiqueta, 9.5f, false, Tema.Gris);
+        label.SetBounds(20, y, 150, 22);
+        caja.SetBounds(180, y - 3, 230, 28);
+        Controls.Add(label);
+        Controls.Add(caja);
+    }
+
+    private void Guardar(object sender, EventArgs e)
+    {
+        decimal precio;
+        int stock;
+        if (string.IsNullOrWhiteSpace(txtNombre.Text) || string.IsNullOrWhiteSpace(txtTipo.Text) ||
+            string.IsNullOrWhiteSpace(txtTalle.Text) || string.IsNullOrWhiteSpace(txtColor.Text))
+        {
+            MessageBox.Show("Nombre, tipo, talle y color son obligatorios.", "Producto",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        if (!decimal.TryParse(txtPrecio.Text.Trim(), NumberStyles.Number, Tema.Ar, out precio) || precio <= 0)
+        {
+            MessageBox.Show("El precio debe ser un número mayor a cero.", "Producto",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        if (!int.TryParse(txtStock.Text.Trim(), out stock) || stock < 0)
+        {
+            MessageBox.Show("El stock inicial debe ser un número entero igual o mayor a cero.", "Producto",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        Producto = new Producto
+        {
+            idProducto = idProducto,
+            Nombre = txtNombre.Text.Trim(),
+            Tipo = txtTipo.Text.Trim(),
+            Talle = txtTalle.Text.Trim(),
+            Color = txtColor.Text.Trim(),
+            Precio = precio,
+            Stock = stock,
+            Activo = true
+        };
+        DialogResult = DialogResult.OK;
+        Close();
+    }
+}
+
+internal sealed class FrmOperacionStock : Form
+{
+    private readonly ComboBox cmbProducto = new ComboBox();
+    private readonly NumericUpDown nudCantidad = new NumericUpDown();
+    private readonly bool productoFijado;
+
+    public int IdProducto { get; private set; }
+    public int Cantidad { get { return (int)nudCantidad.Value; } }
+
+    public FrmOperacionStock(List<Producto> productos, string etiqueta, Producto seleccionado)
+    {
+        productoFijado = seleccionado != null;
+        Text = etiqueta;
+        ClientSize = new Size(470, 190);
+        StartPosition = FormStartPosition.CenterParent;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        BackColor = Tema.Fondo;
+
+        var lblProducto = Tema.Etiqueta("Producto", 9.5f, false, Tema.Gris);
+        lblProducto.SetBounds(20, 20, 150, 22);
+        cmbProducto.SetBounds(180, 17, 270, 28);
+        cmbProducto.DropDownStyle = ComboBoxStyle.DropDownList;
+        cmbProducto.BackColor = Tema.Tarjeta;
+        cmbProducto.ForeColor = Tema.Texto;
+        cmbProducto.Font = Tema.Fuente(10);
+        cmbProducto.DisplayMember = "Nombre";
+        foreach (var producto in productos)
+            cmbProducto.Items.Add(producto);
+        Controls.Add(lblProducto);
+        Controls.Add(cmbProducto);
+
+        var lblCantidad = Tema.Etiqueta(etiqueta, 9.5f, false, Tema.Gris);
+        lblCantidad.SetBounds(20, 68, 150, 22);
+        nudCantidad.SetBounds(180, 65, 120, 28);
+        nudCantidad.Minimum = 1;
+        nudCantidad.Maximum = 1000000;
+        Controls.Add(lblCantidad);
+        Controls.Add(nudCantidad);
+
+        if (seleccionado != null)
+        {
+            cmbProducto.SelectedItem = productos.FirstOrDefault(x => x.idProducto == seleccionado.idProducto);
+            nudCantidad.Minimum = 0;
+            nudCantidad.Value = seleccionado.Stock;
+        }
+        else if (cmbProducto.Items.Count > 0)
+            cmbProducto.SelectedIndex = 0;
+
+        cmbProducto.Enabled = !productoFijado;
+        var cancelar = Tema.Boton("Cancelar", false);
+        cancelar.SetBounds(250, 130, 95, 40);
+        cancelar.DialogResult = DialogResult.Cancel;
+        Controls.Add(cancelar);
+        var aceptar = Tema.Boton("Aceptar");
+        aceptar.SetBounds(355, 130, 95, 40);
+        aceptar.Click += Aceptar;
+        Controls.Add(aceptar);
+        AcceptButton = aceptar;
+        CancelButton = cancelar;
+    }
+
+    private void Aceptar(object sender, EventArgs e)
+    {
+        var producto = cmbProducto.SelectedItem as Producto;
+        if (producto == null)
+        {
+            MessageBox.Show("Seleccioná un producto.", "Stock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        IdProducto = producto.idProducto;
+        if (IdProducto <= 0 || (!productoFijado && Cantidad <= 0))
+        {
+            MessageBox.Show("Seleccioná un producto y una cantidad válida.", "Stock",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        DialogResult = DialogResult.OK;
+        Close();
+    }
+}
+
+public partial class FrmPrincipal
+{
         // ---------------------------------------------------------- menú lateral
         private Panel ConstruirMenu()
         {
@@ -212,7 +699,7 @@ namespace SistemaCaminosalDeporte.Presentacion
             }
         }
 
-        // ---------------------------------------------------------- vistas (datos de ejemplo)
+        // ---------------------------------------------------------- vistas
         private Control VistaInicio()
         {
             return new UcTabla(
@@ -236,40 +723,12 @@ namespace SistemaCaminosalDeporte.Presentacion
 
         private Control VistaProductos()
         {
-            return new UcTabla(
-                null,
-                new[] { "Nuevo producto", "Editar", "Eliminar" },
-                new[] { "Id", "Nombre", "Tipo", "Talle", "Color", "Precio", "Stock" },
-                new[]
-                {
-                    new[] { "1", "Remera training", "Remera", "L", "Negro", "$ 15.990", "12" },
-                    new[] { "2", "Short deportivo", "Short", "M", "Gris", "$ 12.990", "8" },
-                    new[] { "3", "Pantalón deportivo", "Pantalón", "M", "Negro", "$ 12.990", "6" },
-                    new[] { "4", "Buzo deportivo", "Buzo", "L", "Negro", "$ 22.990", "3" },
-                    new[] { "5", "Zapatillas running", "Calzado", "42", "Negro", "$ 49.990", "5" },
-                    new[] { "6", "Gorra deportiva", "Accesorio", "Único", "Negro", "$ 9.990", "10" }
-                });
+            return new UcProductosReales();
         }
 
         private Control VistaStock()
         {
-            return new UcTabla(
-                new[]
-                {
-                    new[] { "Prendas en stock", "184" },
-                    new[] { "Productos con stock bajo", "4" },
-                    new[] { "Sin stock", "1" }
-                },
-                new[] { "Registrar ingreso de mercadería", "Ajustar cantidad" },
-                new[] { "Producto", "Talle", "Color", "Stock", "Estado" },
-                new[]
-                {
-                    new[] { "Remera training", "L", "Negro", "12", "OK" },
-                    new[] { "Short deportivo", "M", "Gris", "8", "OK" },
-                    new[] { "Buzo deportivo", "L", "Negro", "3", "Bajo" },
-                    new[] { "Zapatillas running", "42", "Negro", "5", "OK" },
-                    new[] { "Botella deportiva", "Único", "Azul", "0", "Sin stock" }
-                });
+            return new UcStockReal();
         }
 
         private Control VistaReportes()
