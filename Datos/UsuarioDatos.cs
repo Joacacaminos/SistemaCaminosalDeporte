@@ -24,6 +24,7 @@ namespace SistemaCaminosalDeporte.Datos
             {
                 new Usuario
                 {
+                    idUsuario = 1,
                     Nombre = "Dueño de Caminos",
                     NombreUsuario = "dueno",
                     ContraseñaHash = contraseñaHash,
@@ -32,6 +33,7 @@ namespace SistemaCaminosalDeporte.Datos
                 },
                 new Usuario
                 {
+                    idUsuario = 2,
                     Nombre = "Empleado de ventas",
                     NombreUsuario = "empleado",
                     ContraseñaHash = contraseñaHash,
@@ -40,6 +42,7 @@ namespace SistemaCaminosalDeporte.Datos
                 },
                 new Usuario
                 {
+                    idUsuario = 3,
                     Nombre = "Administrador del sistema",
                     NombreUsuario = "administrador",
                     ContraseñaHash = contraseñaHash,

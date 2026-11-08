@@ -21,4 +21,14 @@ namespace SistemaCaminosalDeporte.Negocio
         public int Cantidad { get; set; }
         public decimal Total { get; set; }
     }
+
+    public class UltimaVenta
+    {
+        public DateTime Fecha { get; set; }
+        public int idVenta { get; set; }
+        public string Producto { get; set; }
+        public int Cantidad { get; set; }
+        public decimal Total { get; set; }
+        public string MedioPago { get; set; }
+    }
 }

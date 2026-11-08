@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using SistemaCaminosalDeporte.Negocio;
 
 namespace SistemaCaminosalDeporte.Presentacion
 {
@@ -8,11 +9,10 @@ namespace SistemaCaminosalDeporte.Presentacion
     {
         private TextBox txtUsuario;
         private TextBox txtClave;
-        private ComboBox cmbRol;
         private Label lblError;
+        private readonly UsuarioNegocio usuarioNegocio = new UsuarioNegocio();
 
         public string UsuarioIngresado { get { return txtUsuario.Text.Trim(); } }
-        public string RolSeleccionado { get { return (string)cmbRol.SelectedItem; } }
 
         public FrmLogin()
         {
@@ -38,28 +38,13 @@ namespace SistemaCaminosalDeporte.Presentacion
             txtClave.SetBounds(50, 274, 300, 30);
             Controls.Add(txtClave);
 
-            // Solo para la demo visual: cuando exista la base de datos, el rol sale del usuario.
-            Controls.Add(Etq("Rol (solo demo)", 50, 318));
-            cmbRol = new ComboBox
-            {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Tema.Tarjeta,
-                ForeColor = Tema.Texto,
-                Font = Tema.Fuente(11)
-            };
-            cmbRol.Items.AddRange(new object[] { "Dueño", "Empleado", "Administrador" });
-            cmbRol.SelectedIndex = 0;
-            cmbRol.SetBounds(50, 340, 300, 30);
-            Controls.Add(cmbRol);
-
             lblError = Tema.Etiqueta("", 9, false, Tema.Rojo);
-            lblError.Location = new Point(50, 378);
+            lblError.Location = new Point(50, 318);
             lblError.Visible = false;
             Controls.Add(lblError);
 
             var btnIngresar = Tema.Boton("Ingresar");
-            btnIngresar.SetBounds(50, 402, 300, 44);
+            btnIngresar.SetBounds(50, 342, 300, 44);
             btnIngresar.Click += Ingresar;
             Controls.Add(btnIngresar);
             AcceptButton = btnIngresar;
@@ -73,7 +58,15 @@ namespace SistemaCaminosalDeporte.Presentacion
                 lblError.Visible = true;
                 return;
             }
-            // TODO (capa Negocio): validar usuario y contraseña (hash) contra la tabla Usuario.
+            var resultado = usuarioNegocio.Login(txtUsuario.Text, txtClave.Text);
+            if (!resultado.Exito)
+            {
+                lblError.Text = resultado.Mensaje;
+                lblError.Visible = true;
+                return;
+            }
+
+            SesionActual.Iniciar(resultado.Valor);
             DialogResult = DialogResult.OK;
         }
 

@@ -47,6 +47,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Datos\DetalleVentaDatos.cs" />
     <Compile Include="Datos\MovimientoStockDatos.cs" />
     <Compile Include="Datos\ProductoDatos.cs" />
     <Compile Include="Datos\RepositorioXml.cs" />
@@ -57,6 +58,14 @@
     <Compile Include="Entidades\Producto.cs" />
     <Compile Include="Entidades\Usuario.cs" />
     <Compile Include="Entidades\Venta.cs" />
+    <Compile Include="Negocio\ModelosNegocio.cs" />
+    <Compile Include="Negocio\ProductoNegocio.cs" />
+    <Compile Include="Negocio\ReporteNegocio.cs" />
+    <Compile Include="Negocio\Resultado.cs" />
+    <Compile Include="Negocio\SesionActual.cs" />
+    <Compile Include="Negocio\StockNegocio.cs" />
+    <Compile Include="Negocio\UsuarioNegocio.cs" />
+    <Compile Include="Negocio\VentaNegocio.cs" />
     <Compile Include="Presentacion\FrmLogin.cs">
       <SubType>Form</SubType>
     </Compile>

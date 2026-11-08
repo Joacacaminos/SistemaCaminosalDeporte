@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Linq;
+using SistemaCaminosalDeporte.Negocio;
 
 namespace SistemaCaminosalDeporte.Presentacion
 {
@@ -16,6 +17,8 @@ namespace SistemaCaminosalDeporte.Presentacion
         private readonly List<Button> botones = new List<Button>();
         private Panel pnlContenido;
         private Label lblTitulo, lblSubtitulo, lblFecha;
+
+        public bool SolicitoCerrarSesion { get; private set; }
 
         public FrmPrincipal(string usuario, string rol)
         {
@@ -89,11 +92,18 @@ namespace SistemaCaminosalDeporte.Presentacion
                 Height = 46
             };
             salir.FlatAppearance.BorderSize = 0;
-            salir.Click += (s, e) => Close();
+            salir.Click += (s, e) => CerrarSesion();
 
             menu.Controls.Add(lema);
             menu.Controls.Add(salir);
             return menu;
+        }
+
+        private void CerrarSesion()
+        {
+            SolicitoCerrarSesion = true;
+            SesionActual.Cerrar();
+            Close();
         }
 
         /// <summary>Qué ve cada rol (ajustable según lo que defina el equipo).</summary>

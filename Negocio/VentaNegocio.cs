@@ -131,6 +131,54 @@ namespace SistemaCaminosalDeporte.Negocio
             }
         }
 
+        public Resultado<List<UltimaVenta>> UltimasVentas(int cantidad = 10)
+        {
+            if (cantidad <= 0)
+                return Resultado<List<UltimaVenta>>.Error("La cantidad de ventas debe ser mayor a cero.");
+
+            try
+            {
+                var nombres = productos.ObtenerTodos()
+                    .ToDictionary(x => x.idProducto, x => x.Nombre);
+                var detallesPorVenta = detalles.ObtenerTodos()
+                    .GroupBy(x => x.idVenta)
+                    .ToDictionary(x => x.Key, x => x.ToList());
+
+                var resultado = ventas.ObtenerTodos()
+                    .OrderByDescending(x => x.Fecha)
+                    .Take(cantidad)
+                    .Select(venta =>
+                    {
+                        List<DetalleVenta> detallesVenta;
+                        if (!detallesPorVenta.TryGetValue(venta.idVenta, out detallesVenta))
+                            detallesVenta = new List<DetalleVenta>();
+
+                        var nombresProductos = detallesVenta
+                            .Select(x => nombres.ContainsKey(x.idProducto) ? nombres[x.idProducto] : "Producto eliminado")
+                            .ToList();
+
+                        return new UltimaVenta
+                        {
+                            Fecha = venta.Fecha,
+                            idVenta = venta.idVenta,
+                            Producto = nombresProductos.Count == 0
+                                ? "Sin detalle"
+                                : nombresProductos[0] + (nombresProductos.Count > 1 ? " y otros" : string.Empty),
+                            Cantidad = detallesVenta.Sum(x => x.Cantidad),
+                            Total = venta.MontoTotal,
+                            MedioPago = venta.MedioPago
+                        };
+                    })
+                    .ToList();
+
+                return Resultado<List<UltimaVenta>>.Ok(resultado);
+            }
+            catch (Exception ex)
+            {
+                return Resultado<List<UltimaVenta>>.Error("No se pudieron cargar las últimas ventas: " + ex.Message);
+            }
+        }
+
         private Resultado ValidarDatos(IEnumerable<LineaVenta> lineas, string medioPago, Usuario usuario)
         {
             try

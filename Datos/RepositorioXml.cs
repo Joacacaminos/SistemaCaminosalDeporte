@@ -44,6 +44,34 @@ namespace SistemaCaminosalDeporte.Datos
                     : new List<T>(datosIniciales);
                 Guardar();
             }
+
+            NormalizarIds();
+        }
+
+        private void NormalizarIds()
+        {
+            lock (sincronizacion)
+            {
+                var idsUsados = new HashSet<int>(registros.Where(x => obtenerId(x) > 0).Select(obtenerId));
+                var siguienteId = idsUsados.Count == 0 ? 1 : idsUsados.Max() + 1;
+                var huboCambios = false;
+
+                foreach (var registro in registros)
+                {
+                    if (obtenerId(registro) > 0 && registros.Count(x => obtenerId(x) == obtenerId(registro)) == 1)
+                        continue;
+
+                    while (idsUsados.Contains(siguienteId))
+                        siguienteId++;
+
+                    asignarId(registro, siguienteId++);
+                    idsUsados.Add(obtenerId(registro));
+                    huboCambios = true;
+                }
+
+                if (huboCambios)
+                    GuardarInternamente();
+            }
         }
 
         public List<T> ObtenerTodos()

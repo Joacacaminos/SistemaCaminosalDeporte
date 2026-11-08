@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Windows.Forms;
+using SistemaCaminosalDeporte.Negocio;
 using SistemaCaminosalDeporte.Presentacion;
 
 namespace SistemaCaminosalDeporte
@@ -12,10 +13,24 @@ namespace SistemaCaminosalDeporte
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            using (var login = new FrmLogin())
+            while (true)
             {
-                if (login.ShowDialog() != DialogResult.OK) return;
-                Application.Run(new FrmPrincipal(login.UsuarioIngresado, login.RolSeleccionado));
+                using (var login = new FrmLogin())
+                {
+                    if (login.ShowDialog() != DialogResult.OK)
+                        return;
+                }
+
+                var usuario = SesionActual.Usuario;
+                if (usuario == null)
+                    return;
+
+                using (var principal = new FrmPrincipal(usuario.Nombre, usuario.Rol))
+                {
+                    principal.ShowDialog();
+                    if (!principal.SolicitoCerrarSesion)
+                        return;
+                }
             }
         }
     }

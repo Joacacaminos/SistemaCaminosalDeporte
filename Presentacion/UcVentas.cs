@@ -2,27 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Linq;
+using SistemaCaminosalDeporte.Entidades;
+using SistemaCaminosalDeporte.Negocio;
 
 namespace SistemaCaminosalDeporte.Presentacion
 {
-    /// <summary>Pantalla "Registrar una venta" (caso de uso principal del TP). Datos de ejemplo.</summary>
+    /// <summary>Pantalla "Registrar una venta" (caso de uso principal del TP).</summary>
     public class UcVentas : UserControl
     {
-        // nombre, talles, precio, categoría
-        private static readonly string[][] Catalogo =
-        {
-            new[] { "Remera training", "S - M - L - XL", "15990", "Remeras" },
-            new[] { "Short deportivo", "S - M - L - XL", "12990", "Shorts" },
-            new[] { "Pantalón deportivo", "S - M - L - XL", "12990", "Pantalones" },
-            new[] { "Buzo deportivo", "S - M - L - XL", "22990", "Buzos" },
-            new[] { "Zapatillas running", "39 - 40 - 41 - 42 - 43", "49990", "Calzado" },
-            new[] { "Mochila deportiva", "Único", "8990", "Accesorios" },
-            new[] { "Gorra deportiva", "Único", "9990", "Accesorios" },
-            new[] { "Botella deportiva", "Único", "6990", "Accesorios" }
-        };
-
         private static readonly string[] Categorias =
-            { "Todos", "Remeras", "Shorts", "Pantalones", "Buzos", "Calzado", "Accesorios" };
+            { "Todos", "Remera", "Short", "Calza", "Buzo", "Campera", "Conjunto", "Top", "Accesorio" };
 
         private FlowLayoutPanel flpProductos;
         private TextBox txtBuscar;
@@ -32,9 +22,18 @@ namespace SistemaCaminosalDeporte.Presentacion
         private ComboBox cmbDescuento;
         private readonly List<Button> chips = new List<Button>();
         private readonly List<Button> botonesPago = new List<Button>();
+        private readonly ProductoNegocio productoNegocio = new ProductoNegocio();
+        private readonly VentaNegocio ventaNegocio = new VentaNegocio();
         private string categoria = "Todos";
         private string medioPago = "Efectivo";
-        private int comprobante = 124;
+
+        private sealed class CarritoItem
+        {
+            public int idProducto { get; set; }
+            public string Nombre { get; set; }
+            public decimal Precio { get; set; }
+            public int Cantidad { get; set; }
+        }
 
         public UcVentas()
         {
@@ -47,9 +46,6 @@ namespace SistemaCaminosalDeporte.Presentacion
 
             CargarProductos();
             CargarUltimas();
-            Agregar("Remera training", 15990);
-            Agregar("Short deportivo", 12990);
-            Agregar("Zapatillas running", 49990);
             MarcarPago(0);
         }
 
@@ -116,43 +112,49 @@ namespace SistemaCaminosalDeporte.Presentacion
         {
             flpProductos.SuspendLayout();
             flpProductos.Controls.Clear();
-            string q = txtBuscar.Text.Trim().ToLower();
-            foreach (var prod in Catalogo)
+            var resultado = productoNegocio.Buscar(txtBuscar.Text);
+            if (!resultado.Exito)
             {
-                if (categoria != "Todos" && prod[3] != categoria) continue;
-                if (q.Length > 0 && (prod[0] + " " + prod[1] + " " + prod[3]).ToLower().IndexOf(q) < 0) continue;
+                flpProductos.ResumeLayout();
+                return;
+            }
+
+            foreach (var prod in resultado.Valor.Where(x => x.Activo && x.Stock > 0 &&
+                (categoria == "Todos" || string.Equals(x.Tipo, categoria, StringComparison.OrdinalIgnoreCase))))
+            {
                 flpProductos.Controls.Add(CrearTarjeta(prod));
             }
             flpProductos.ResumeLayout();
         }
 
-        private Panel CrearTarjeta(string[] prod)
+        private Panel CrearTarjeta(Producto prod)
         {
-            decimal precio = decimal.Parse(prod[2]);
             var card = Tema.NuevaTarjeta();
             card.Size = new Size(168, 200);
             card.Margin = new Padding(0, 0, 12, 12);
+            card.Tag = prod.idProducto;
 
             // Espacio para la foto del producto (reemplazar por un PictureBox con imagen real)
             var foto = new Label
             {
-                Text = prod[3].ToUpper(),
+                Text = prod.Tipo.ToUpper(),
                 Bounds = new Rectangle(8, 8, 152, 80),
                 BackColor = Tema.Fondo,
                 ForeColor = Tema.Gris,
                 Font = Tema.Fuente(9, true),
                 TextAlign = ContentAlignment.MiddleCenter
             };
-            var nombre = Tema.Etiqueta(prod[0], 9.5f, true);
+            var nombre = Tema.Etiqueta(prod.Nombre, 9.5f, true);
             nombre.Location = new Point(8, 94);
-            var talles = Tema.Etiqueta("Talles: " + prod[1], 8, false, Tema.Gris);
+            var talles = Tema.Etiqueta("Talle: " + prod.Talle + "  Stock: " + prod.Stock, 8, false, Tema.Gris);
             talles.Location = new Point(8, 118);
-            var lblPrecio = Tema.Etiqueta(Tema.Dinero(precio), 12, true, Tema.Verde);
+            var lblPrecio = Tema.Etiqueta(Tema.Dinero(prod.Precio), 12, true, Tema.Verde);
             lblPrecio.Location = new Point(8, 160);
 
             var btn = Tema.Boton("+");
             btn.SetBounds(126, 156, 34, 30);
-            btn.Click += (s, e) => Agregar(prod[0], precio);
+            btn.Enabled = prod.Stock > 0;
+            btn.Click += (s, e) => Agregar(prod);
 
             card.Controls.Add(foto);
             card.Controls.Add(nombre);
@@ -164,10 +166,21 @@ namespace SistemaCaminosalDeporte.Presentacion
 
         private void CargarUltimas()
         {
-            dgvUltimas.Rows.Add("27/10 - 09:45", "000124", "Remera training (L)", "1", "$ 15.990", "Tarjeta");
-            dgvUltimas.Rows.Add("26/10 - 18:37", "000123", "Short deportivo (M)", "1", "$ 12.990", "Efectivo");
-            dgvUltimas.Rows.Add("26/10 - 17:10", "000122", "Zapatillas running (42)", "1", "$ 49.990", "QR");
-            dgvUltimas.Rows.Add("25/10 - 16:23", "000121", "Mochila deportiva", "1", "$ 8.990", "Tarjeta");
+            dgvUltimas.Rows.Clear();
+            var resultado = ventaNegocio.UltimasVentas();
+            if (!resultado.Exito)
+                return;
+
+            foreach (var venta in resultado.Valor)
+            {
+                dgvUltimas.Rows.Add(
+                    venta.Fecha.ToString("dd/MM - HH:mm"),
+                    venta.idVenta.ToString("000000"),
+                    venta.Producto,
+                    venta.Cantidad.ToString(),
+                    Tema.Dinero(venta.Total),
+                    venta.MedioPago);
+            }
         }
 
         // ---------------------------------------------------------- lado derecho
@@ -249,12 +262,25 @@ namespace SistemaCaminosalDeporte.Presentacion
             var titulo = Tema.Etiqueta("Productos en la venta", 12, true);
             titulo.Location = new Point(0, 6);
             cab.Controls.Add(titulo);
-            var btnQuitar = Tema.Boton("Quitar", false);
+            var btnQuitar = Tema.Boton("-1", false);
             btnQuitar.Dock = DockStyle.Right;
             btnQuitar.Width = 80;
             btnQuitar.Click += (s, e) =>
             {
-                if (dgvCarrito.CurrentRow != null) dgvCarrito.Rows.Remove(dgvCarrito.CurrentRow);
+                if (dgvCarrito.CurrentRow != null)
+                {
+                    var fila = dgvCarrito.CurrentRow;
+                    var item = (CarritoItem)fila.Tag;
+                    var cantidad = item.Cantidad - 1;
+                    if (cantidad <= 0)
+                        dgvCarrito.Rows.Remove(fila);
+                    else
+                    {
+                        item.Cantidad = cantidad;
+                        fila.Cells[1].Value = cantidad;
+                        ActualizarFila(fila);
+                    }
+                }
                 Recalcular();
             };
             cab.Controls.Add(btnQuitar);
@@ -283,35 +309,63 @@ namespace SistemaCaminosalDeporte.Presentacion
             };
         }
 
-        // ---------------------------------------------------------- lógica de pantalla (demo)
-        private void Agregar(string nombre, decimal precio)
+        // ---------------------------------------------------------- lógica de pantalla
+        private void Agregar(Producto producto)
         {
             foreach (DataGridViewRow r in dgvCarrito.Rows)
             {
-                if ((string)r.Cells[0].Value == nombre)
+                var item = (CarritoItem)r.Tag;
+                if (item.idProducto == producto.idProducto)
                 {
-                    r.Cells[1].Value = (int)r.Cells[1].Value + 1;
+                    var nuevaCantidad = item.Cantidad + 1;
+                    if (nuevaCantidad > producto.Stock)
+                    {
+                        MessageBox.Show("No hay stock suficiente para agregar otra unidad.", "Stock",
+                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+
+                    item.Cantidad = nuevaCantidad;
+                    r.Cells[1].Value = nuevaCantidad;
                     ActualizarFila(r);
                     Recalcular();
                     return;
                 }
             }
-            int i = dgvCarrito.Rows.Add(nombre, 1, "");
-            dgvCarrito.Rows[i].Tag = precio;
+            if (producto.Stock <= 0)
+            {
+                MessageBox.Show("El producto no tiene stock disponible.", "Stock",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            int i = dgvCarrito.Rows.Add(producto.Nombre, 1, "");
+            dgvCarrito.Rows[i].Tag = new CarritoItem
+            {
+                idProducto = producto.idProducto,
+                Nombre = producto.Nombre,
+                Precio = producto.Precio,
+                Cantidad = 1
+            };
             ActualizarFila(dgvCarrito.Rows[i]);
             Recalcular();
         }
 
         private void ActualizarFila(DataGridViewRow r)
         {
-            r.Cells[2].Value = Tema.Dinero((decimal)r.Tag * (int)r.Cells[1].Value);
+            var item = (CarritoItem)r.Tag;
+            r.Cells[1].Value = item.Cantidad;
+            r.Cells[2].Value = Tema.Dinero(item.Precio * item.Cantidad);
         }
 
         private decimal Subtotal()
         {
             decimal sub = 0;
             foreach (DataGridViewRow r in dgvCarrito.Rows)
-                sub += (decimal)r.Tag * (int)r.Cells[1].Value;
+            {
+                var item = (CarritoItem)r.Tag;
+                sub += item.Precio * item.Cantidad;
+            }
             return sub;
         }
 
@@ -357,23 +411,32 @@ namespace SistemaCaminosalDeporte.Presentacion
                 return;
             }
 
-            // TODO (capa Negocio): validar stock y guardar Venta + DetalleVenta + MovimientoStock en una transacción.
-            string total = lblTotal.Text;
-            int unidades = 0;
-            foreach (DataGridViewRow r in dgvCarrito.Rows) unidades += (int)r.Cells[1].Value;
-            string primero = (string)dgvCarrito.Rows[0].Cells[0].Value;
-            if (dgvCarrito.Rows.Count > 1) primero += " y otros";
+            var lineas = dgvCarrito.Rows.Cast<DataGridViewRow>()
+                .Select(fila => new LineaVenta
+                {
+                    idProducto = ((CarritoItem)fila.Tag).idProducto,
+                    Cantidad = ((CarritoItem)fila.Tag).Cantidad
+                })
+                .ToList();
 
-            comprobante++;
-            dgvUltimas.Rows.Insert(0, DateTime.Now.ToString("dd/MM - HH:mm"), comprobante.ToString("000000"),
-                primero, unidades.ToString(), total, medioPago);
+            var resultado = ventaNegocio.Registrar(lineas, medioPago, SesionActual.Usuario);
+            if (!resultado.Exito)
+            {
+                MessageBox.Show(resultado.Mensaje, "Registrar venta",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                CargarProductos();
+                return;
+            }
 
-            MessageBox.Show("Venta registrada correctamente.\nTotal: " + total + "\nMedio de pago: " + medioPago,
+            string total = Tema.Dinero(resultado.Valor.MontoTotal);
+            MessageBox.Show(resultado.Mensaje + "\nTotal: " + total + "\nMedio de pago: " + medioPago,
                 "Registrar venta", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
             dgvCarrito.Rows.Clear();
             cmbDescuento.SelectedIndex = 0;
             Recalcular();
+            CargarProductos();
+            CargarUltimas();
         }
     }
 }
