@@ -85,6 +85,18 @@ namespace SistemaCaminosalDeporte.Datos
             }
         }
 
+        public void ReemplazarTodos(IEnumerable<T> nuevosRegistros)
+        {
+            if (nuevosRegistros == null)
+                throw new ArgumentNullException(nameof(nuevosRegistros));
+
+            lock (sincronizacion)
+            {
+                registros = new List<T>(nuevosRegistros);
+                GuardarInternamente();
+            }
+        }
+
         private List<T> LeerArchivo()
         {
             var serializer = new XmlSerializer(typeof(List<T>));
