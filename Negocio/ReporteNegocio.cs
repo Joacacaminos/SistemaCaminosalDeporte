@@ -29,9 +29,10 @@ namespace SistemaCaminosalDeporte.Negocio
 
             try
             {
-                var lineas = new List<string> { "Periodo;Total" };
+                var lineas = new List<string> { "Periodo;Total;Medios de pago" };
                 lineas.AddRange(ingresos.Select(x =>
-                    x.Periodo.ToString("dd/MM/yyyy") + ";" + x.Total.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)));
+                    x.Periodo.ToString("dd/MM/yyyy") + ";" + x.Total.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)
+                    + ";" + (x.MediosPago ?? string.Empty)));
                 File.WriteAllLines(rutaArchivo, lineas, Encoding.UTF8);
                 return Resultado.Ok("Reporte exportado correctamente.");
             }
@@ -109,7 +110,10 @@ namespace SistemaCaminosalDeporte.Negocio
                     .Select(grupo => new IngresoReporte
                     {
                         Periodo = grupo.Key,
-                        Total = grupo.Sum(x => x.MontoTotal)
+                        Total = grupo.Sum(x => x.MontoTotal),
+                        MediosPago = string.Join(", ", grupo
+                            .Select(VentaNegocio.ObtenerDescripcionMedioPago)
+                            .Distinct())
                     })
                     .OrderBy(x => x.Periodo)
                     .ToList();

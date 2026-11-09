@@ -42,6 +42,7 @@ namespace SistemaCaminosalDeporte.Presentacion
 
             Navegar("Inicio");
         }
+
     }
 
 /// <summary>Vista de productos activos conectada a ProductoNegocio.</summary>
@@ -533,6 +534,12 @@ internal sealed class FrmOperacionStock : Form
 /// <summary>Constructores visuales compartidos por las vistas reales.</summary>
 internal static class VistaRealUtil
 {
+    public static bool PuedeEliminarVentas()
+    {
+        return SesionActual.Usuario != null &&
+            (SesionActual.Usuario.Rol == "Dueño" || SesionActual.Usuario.Rol == "Administrador");
+    }
+
     public static Button Boton(string texto, bool primario, EventHandler accion)
     {
         var btnAccion = Tema.Boton(texto, primario);
@@ -573,11 +580,14 @@ internal sealed class UcInicioReal : UserControl
     private readonly ReporteNegocio reportes = new ReporteNegocio();
     private readonly StockNegocio stock = new StockNegocio();
     private readonly VentaNegocio ventas = new VentaNegocio();
+    private readonly DataGridView dgvUltimas = Tema.NuevaGrilla();
+    private readonly Label lblHoy;
+    private readonly Label lblSemana;
+    private readonly Label lblMes;
 
     public UcInicioReal()
     {
         BackColor = Tema.Fondo;
-        var dgvUltimas = Tema.NuevaGrilla();
         dgvUltimas.Dock = DockStyle.Fill;
         foreach (var columna in new[] { "Fecha", "Comprobante", "Producto", "Cant.", "Total", "Medio de pago" })
             dgvUltimas.Columns.Add(columna, columna);
@@ -587,13 +597,30 @@ internal sealed class UcInicioReal : UserControl
         var hoy = DateTime.Today;
         var semana = hoy.AddDays(-((int)hoy.DayOfWeek + 6) % 7);
         var mes = new DateTime(hoy.Year, hoy.Month, 1);
-        VistaRealUtil.Tarjeta(pnlTarjetas, "Ventas de hoy").Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorDia(hoy, hoy)));
-        VistaRealUtil.Tarjeta(pnlTarjetas, "Ventas de la semana").Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorSemana(semana, hoy)));
-        VistaRealUtil.Tarjeta(pnlTarjetas, "Ventas del mes").Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorMes(mes, hoy)));
+        lblHoy = VistaRealUtil.Tarjeta(pnlTarjetas, "Ventas de hoy");
+        lblSemana = VistaRealUtil.Tarjeta(pnlTarjetas, "Ventas de la semana");
+        lblMes = VistaRealUtil.Tarjeta(pnlTarjetas, "Ventas del mes");
         var bajo = stock.ListarStockBajo(5);
         VistaRealUtil.Tarjeta(pnlTarjetas, "Productos con stock bajo").Text =
             bajo.Exito ? bajo.Valor.Count.ToString() : "0";
         Controls.Add(pnlTarjetas);
+
+        if (VistaRealUtil.PuedeEliminarVentas())
+        {
+            var pnlAcciones = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 42, BackColor = Color.Transparent };
+            pnlAcciones.Controls.Add(VistaRealUtil.Boton("Eliminar venta", false, EliminarSeleccionada));
+            Controls.Add(pnlAcciones);
+        }
+
+        CargarDatos(hoy, semana, mes);
+    }
+
+    private void CargarDatos(DateTime hoy, DateTime semana, DateTime mes)
+    {
+        lblHoy.Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorDia(hoy, hoy)));
+        lblSemana.Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorSemana(semana, hoy)));
+        lblMes.Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorMes(mes, hoy)));
+        dgvUltimas.Rows.Clear();
 
         var ultimas = ventas.UltimasVentas();
         if (!ultimas.Exito)
@@ -602,8 +629,33 @@ internal sealed class UcInicioReal : UserControl
             return;
         }
         foreach (var venta in ultimas.Valor)
-            dgvUltimas.Rows.Add(venta.Fecha.ToString("dd/MM - HH:mm"), venta.idVenta.ToString("000000"),
+        {
+            var fila = dgvUltimas.Rows.Add(venta.Fecha.ToString("dd/MM - HH:mm"), venta.idVenta.ToString("000000"),
                 venta.Producto, venta.Cantidad, Tema.Dinero(venta.Total), venta.MedioPago);
+            dgvUltimas.Rows[fila].Tag = venta.idVenta;
+        }
+    }
+
+    private void EliminarSeleccionada(object sender, EventArgs e)
+    {
+        if (dgvUltimas.CurrentRow == null || dgvUltimas.CurrentRow.Tag == null)
+        {
+            MessageBox.Show("Seleccioná una venta para eliminar.", "Ventas", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        var idVenta = (int)dgvUltimas.CurrentRow.Tag;
+        if (MessageBox.Show("¿Confirmás eliminar la venta seleccionada y devolver sus unidades al stock?",
+            "Eliminar venta", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            return;
+        var resultado = ventas.EliminarVenta(idVenta, SesionActual.Usuario);
+        if (!resultado.Exito)
+        {
+            MessageBox.Show(resultado.Mensaje, "Eliminar venta", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        MessageBox.Show(resultado.Mensaje, "Eliminar venta", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        var hoy = DateTime.Today;
+        CargarDatos(hoy, hoy.AddDays(-((int)hoy.DayOfWeek + 6) % 7), new DateTime(hoy.Year, hoy.Month, 1));
     }
 }
 
@@ -611,8 +663,10 @@ internal sealed class UcInicioReal : UserControl
 internal sealed class UcReportesReal : UserControl
 {
     private readonly ReporteNegocio negocio = new ReporteNegocio();
+    private readonly VentaNegocio ventas = new VentaNegocio();
     private readonly DataGridView dgvIngresos = Tema.NuevaGrilla();
     private readonly DataGridView dgvProductosVendidos = Tema.NuevaGrilla();
+    private readonly DataGridView dgvVentasPeriodo = Tema.NuevaGrilla();
     private readonly Label lblTotal;
     private readonly Label lblRegistros;
     private readonly Label lblProductos;
@@ -625,7 +679,14 @@ internal sealed class UcReportesReal : UserControl
         dgvIngresos.Dock = DockStyle.Fill;
         dgvIngresos.Columns.Add("Periodo", "Periodo");
         dgvIngresos.Columns.Add("Total", "Total");
+        dgvIngresos.Columns.Add("Medios", "Medios de pago");
         Controls.Add(dgvIngresos);
+
+        dgvVentasPeriodo.Dock = DockStyle.Bottom;
+        dgvVentasPeriodo.Height = 150;
+        foreach (var columna in new[] { "Fecha", "Comprobante", "Producto", "Cant.", "Total", "Medio de pago" })
+            dgvVentasPeriodo.Columns.Add(columna, columna);
+        Controls.Add(dgvVentasPeriodo);
 
         dgvProductosVendidos.Dock = DockStyle.Bottom;
         dgvProductosVendidos.Height = 180;
@@ -645,6 +706,8 @@ internal sealed class UcReportesReal : UserControl
         pnlBarra.Controls.Add(VistaRealUtil.Boton("Semanal", false, (s, e) => Cargar("Semanal")));
         pnlBarra.Controls.Add(VistaRealUtil.Boton("Mensual", false, (s, e) => Cargar("Mensual")));
         pnlBarra.Controls.Add(VistaRealUtil.Boton("Exportar", false, Exportar));
+        if (VistaRealUtil.PuedeEliminarVentas())
+            pnlBarra.Controls.Add(VistaRealUtil.Boton("Eliminar venta", false, EliminarSeleccionada));
         Controls.Add(pnlBarra);
         Cargar(periodoActual);
     }
@@ -670,7 +733,10 @@ internal sealed class UcReportesReal : UserControl
         ingresosActuales = resultado.Valor;
         dgvIngresos.Rows.Clear();
         foreach (var ingreso in ingresosActuales)
-            dgvIngresos.Rows.Add(ingreso.Periodo.ToString(periodo == "Diario" ? "dd/MM/yyyy" : "MM/yyyy"), Tema.Dinero(ingreso.Total));
+            dgvIngresos.Rows.Add(ingreso.Periodo.ToString(periodo == "Diario" ? "dd/MM/yyyy" : "MM/yyyy"),
+                Tema.Dinero(ingreso.Total), ingreso.MediosPago);
+
+        CargarVentasPeriodo(desde, hasta);
 
         var productos = negocio.ProductosMasVendidos();
         dgvProductosVendidos.Rows.Clear();
@@ -681,6 +747,42 @@ internal sealed class UcReportesReal : UserControl
         lblTotal.Text = Tema.Dinero(ingresosActuales.Sum(x => x.Total));
         lblRegistros.Text = ingresosActuales.Count.ToString();
         lblProductos.Text = productos.Exito ? productos.Valor.Sum(x => x.Cantidad).ToString() : "0";
+    }
+
+    private void CargarVentasPeriodo(DateTime desde, DateTime hasta)
+    {
+        dgvVentasPeriodo.Rows.Clear();
+        var resultado = ventas.VentasDelPeriodo(desde, hasta);
+        if (!resultado.Exito)
+            return;
+        foreach (var venta in resultado.Valor)
+        {
+            var fila = dgvVentasPeriodo.Rows.Add(venta.Fecha.ToString("dd/MM/yyyy HH:mm"),
+                venta.idVenta.ToString("000000"), venta.Producto, venta.Cantidad,
+                Tema.Dinero(venta.Total), venta.MedioPago);
+            dgvVentasPeriodo.Rows[fila].Tag = venta.idVenta;
+        }
+    }
+
+    private void EliminarSeleccionada(object sender, EventArgs e)
+    {
+        if (dgvVentasPeriodo.CurrentRow == null || dgvVentasPeriodo.CurrentRow.Tag == null)
+        {
+            MessageBox.Show("Seleccioná una venta para eliminar.", "Ventas", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        var idVenta = (int)dgvVentasPeriodo.CurrentRow.Tag;
+        if (MessageBox.Show("¿Confirmás eliminar la venta seleccionada y devolver sus unidades al stock?",
+            "Eliminar venta", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            return;
+        var resultado = ventas.EliminarVenta(idVenta, SesionActual.Usuario);
+        if (!resultado.Exito)
+        {
+            MessageBox.Show(resultado.Mensaje, "Eliminar venta", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        MessageBox.Show(resultado.Mensaje, "Eliminar venta", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        Cargar(periodoActual);
     }
 
     private void Exportar(object sender, EventArgs e)

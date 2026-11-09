@@ -9,6 +9,127 @@ namespace SistemaCaminosalDeporte.Negocio
     /// <summary>Valida y registra ventas, detalles y movimientos de salida.</summary>
     public class VentaNegocio
     {
+        public const decimal RecargoTarjetaPorcentaje = 0.15m;
+
+        public PagoCalculado CalcularPago(decimal subtotal, string medioPago, string cuotaPlan, decimal porcentajeDescuento)
+        {
+            var descuento = subtotal * porcentajeDescuento / 100m;
+            var baseParaRecargo = subtotal - descuento;
+            var recargo = medioPago == "Tarjeta" ? baseParaRecargo * RecargoTarjetaPorcentaje : 0m;
+            return new PagoCalculado
+            {
+                Subtotal = subtotal,
+                Descuento = descuento,
+                Recargo = recargo,
+                Total = baseParaRecargo + recargo
+            };
+        }
+
+        public Resultado<List<UltimaVenta>> VentasDelPeriodo(DateTime desde, DateTime hasta)
+        {
+            if (desde.Date > hasta.Date)
+                return Resultado<List<UltimaVenta>>.Error("La fecha inicial no puede ser posterior a la fecha final.");
+
+            try
+            {
+                var nombres = productos.ObtenerTodos().ToDictionary(x => x.idProducto, x => x.Nombre);
+                var detallesPorVenta = detalles.ObtenerTodos().GroupBy(x => x.idVenta)
+                    .ToDictionary(x => x.Key, x => x.ToList());
+                var finExclusivo = hasta.Date.AddDays(1);
+                var resultado = ventas.ObtenerTodos()
+                    .Where(x => x.Fecha >= desde.Date && x.Fecha < finExclusivo)
+                    .OrderByDescending(x => x.Fecha)
+                    .Select(venta => CrearUltimaVenta(venta, nombres, detallesPorVenta))
+                    .ToList();
+                return Resultado<List<UltimaVenta>>.Ok(resultado);
+            }
+            catch (Exception ex)
+            {
+                return Resultado<List<UltimaVenta>>.Error("No se pudieron cargar las ventas del período: " + ex.Message);
+            }
+        }
+
+        public Resultado EliminarVenta(int idVenta, Usuario usuario)
+        {
+            if (idVenta <= 0)
+                return Resultado.Error("La venta seleccionada no es válida.");
+            if (usuario == null || (usuario.Rol != "Dueño" && usuario.Rol != "Administrador"))
+                return Resultado.Error("Solo los roles Dueño y Administrador pueden eliminar ventas.");
+
+            var usuarioActual = usuarios.ObtenerPorId(usuario.idUsuario);
+            if (usuarioActual == null || !usuarioActual.Activo)
+                return Resultado.Error("El usuario que elimina la venta no existe o está inactivo.");
+
+            var ventasOriginales = ventas.ObtenerTodos().Select(ClonarVenta).ToList();
+            var detallesOriginales = detalles.ObtenerTodos().Select(ClonarDetalle).ToList();
+            var productosOriginales = productos.ObtenerTodos().Select(ClonarProducto).ToList();
+            var movimientosOriginales = movimientos.ObtenerTodos().Select(ClonarMovimiento).ToList();
+
+            try
+            {
+                var venta = ventasOriginales.FirstOrDefault(x => x.idVenta == idVenta);
+                if (venta == null)
+                    return Resultado.Error("La venta seleccionada no existe.");
+
+                var detallesVenta = detallesOriginales.Where(x => x.idVenta == idVenta).ToList();
+
+                var productosActuales = productos.ObtenerTodos();
+                foreach (var detalle in detallesVenta)
+                {
+                    var producto = productosActuales.FirstOrDefault(x => x.idProducto == detalle.idProducto);
+                    if (producto == null)
+                        return Resultado.Error("No se puede eliminar la venta porque falta el producto " + detalle.idProducto + ".");
+                    producto.Stock += detalle.Cantidad;
+                }
+
+                ventas.ReemplazarTodos(ventasOriginales.Where(x => x.idVenta != idVenta));
+                detalles.ReemplazarTodos(detallesOriginales.Where(x => x.idVenta != idVenta));
+                productos.Guardar();
+                foreach (var detalle in detallesVenta)
+                {
+                    movimientos.Agregar(new MovimientoStock
+                    {
+                        idProducto = detalle.idProducto,
+                        Tipo = "Entrada - Eliminación de venta",
+                        Cantidad = detalle.Cantidad,
+                        Fecha = DateTime.Now,
+                        idUsuario = usuario.idUsuario
+                    });
+                }
+
+                return Resultado.Ok("Venta eliminada correctamente y stock restaurado.");
+            }
+            catch (Exception ex)
+            {
+                var restaurado = Restaurar(ventasOriginales, detallesOriginales, productosOriginales, movimientosOriginales);
+                var mensaje = "No se pudo eliminar la venta: " + ex.Message;
+                if (!restaurado)
+                    mensaje += " Además, no se pudo restaurar completamente el estado anterior.";
+                return Resultado.Error(mensaje);
+            }
+        }
+
+        private static UltimaVenta CrearUltimaVenta(Venta venta, Dictionary<int, string> nombres,
+            Dictionary<int, List<DetalleVenta>> detallesPorVenta)
+        {
+            List<DetalleVenta> detallesVenta;
+            if (!detallesPorVenta.TryGetValue(venta.idVenta, out detallesVenta))
+                detallesVenta = new List<DetalleVenta>();
+            var nombresProductos = detallesVenta.Select(x => nombres.ContainsKey(x.idProducto)
+                ? nombres[x.idProducto] : "Producto eliminado").ToList();
+            return new UltimaVenta
+            {
+                Fecha = venta.Fecha,
+                idVenta = venta.idVenta,
+                Producto = nombresProductos.Count == 0 ? "Sin detalle" : nombresProductos[0]
+                    + (nombresProductos.Count > 1 ? " y otros" : string.Empty),
+                Cantidad = detallesVenta.Sum(x => x.Cantidad),
+                Total = venta.MontoTotal,
+                MedioPago = ObtenerDescripcionMedioPago(venta),
+                CuotaPlan = venta.CuotaPlan
+            };
+        }
+
         private readonly ProductoDatos productos;
         private readonly VentaDatos ventas;
         private readonly DetalleVentaDatos detalles;
@@ -45,8 +166,19 @@ namespace SistemaCaminosalDeporte.Negocio
             string medioPago,
             Usuario usuario)
         {
+            return Registrar(lineas, medioPago, CuotaPlanPredeterminada(medioPago), 0m, usuario);
+        }
+
+        /// <summary>Registra la venta calculando descuento, recargo y total final.</summary>
+        public Resultado<Venta> Registrar(
+            IEnumerable<LineaVenta> lineas,
+            string medioPago,
+            string cuotaPlan,
+            decimal porcentajeDescuento,
+            Usuario usuario)
+        {
             var listaLineas = lineas == null ? null : lineas.ToList();
-            var validacion = ValidarDatos(listaLineas, medioPago, usuario);
+            var validacion = ValidarDatos(listaLineas, medioPago, cuotaPlan, porcentajeDescuento, usuario);
             if (!validacion.Exito)
                 return Resultado<Venta>.Error(validacion.Mensaje);
 
@@ -76,15 +208,22 @@ namespace SistemaCaminosalDeporte.Negocio
                         return Resultado<Venta>.Error("No hay stock suficiente para el producto: " + producto.Nombre + ".");
                 }
 
+                var subtotal = lineasNormalizadas.Sum(linea =>
+                {
+                    var producto = productosActuales.First(x => x.idProducto == linea.idProducto);
+                    return producto.Precio * linea.Cantidad;
+                });
+                var pago = CalcularPago(subtotal, medioPago, cuotaPlan, porcentajeDescuento);
+
                 var venta = new Venta
                 {
                     Fecha = DateTime.Now,
                     MedioPago = medioPago,
-                    MontoTotal = lineasNormalizadas.Sum(linea =>
-                    {
-                        var producto = productosActuales.First(x => x.idProducto == linea.idProducto);
-                        return producto.Precio * linea.Cantidad;
-                    }),
+                    CuotaPlan = cuotaPlan,
+                    MontoSubtotal = subtotal,
+                    MontoDescuento = pago.Descuento,
+                    MontoRecargo = pago.Recargo,
+                    MontoTotal = pago.Total,
                     idUsuario = usuario.idUsuario
                 };
                 ventas.Agregar(venta);
@@ -168,7 +307,8 @@ namespace SistemaCaminosalDeporte.Negocio
                                 : nombresProductos[0] + (nombresProductos.Count > 1 ? " y otros" : string.Empty),
                             Cantidad = detallesVenta.Sum(x => x.Cantidad),
                             Total = venta.MontoTotal,
-                            MedioPago = venta.MedioPago
+                            MedioPago = ObtenerDescripcionMedioPago(venta),
+                            CuotaPlan = venta.CuotaPlan
                         };
                     })
                     .ToList();
@@ -181,7 +321,8 @@ namespace SistemaCaminosalDeporte.Negocio
             }
         }
 
-        private Resultado ValidarDatos(IEnumerable<LineaVenta> lineas, string medioPago, Usuario usuario)
+        private Resultado ValidarDatos(IEnumerable<LineaVenta> lineas, string medioPago, string cuotaPlan,
+            decimal porcentajeDescuento, Usuario usuario)
         {
             try
             {
@@ -195,6 +336,10 @@ namespace SistemaCaminosalDeporte.Negocio
                     return Resultado.Error("Cada producto debe tener un ID válido y una cantidad mayor a cero.");
                 if (!MedioPagoValido(medioPago))
                     return Resultado.Error("El medio de pago debe ser Efectivo, Tarjeta, QR o Go Cuotas.");
+                if (!CuotaPlanValido(medioPago, cuotaPlan))
+                    return Resultado.Error("La cuota o plan seleccionado no es válido para el medio de pago.");
+                if (porcentajeDescuento < 0 || porcentajeDescuento > 100)
+                    return Resultado.Error("El porcentaje de descuento debe estar entre 0 y 100.");
                 if (usuario == null || usuario.idUsuario <= 0 || !usuario.Activo)
                     return Resultado.Error("El usuario que registra la venta no es válido o está inactivo.");
 
@@ -209,6 +354,28 @@ namespace SistemaCaminosalDeporte.Negocio
             }
         }
 
+        private static bool CuotaPlanValido(string medioPago, string cuotaPlan)
+        {
+            if (medioPago == "Tarjeta")
+                return cuotaPlan == "1 cuota" || cuotaPlan == "3 cuotas" || cuotaPlan == "Plan Z (Tarjeta Naranja)";
+            if (medioPago == "Go Cuotas")
+                return cuotaPlan == "1 cuota" || cuotaPlan == "3 cuotas";
+            return string.IsNullOrEmpty(cuotaPlan);
+        }
+
+        private static string CuotaPlanPredeterminada(string medioPago)
+        {
+            return medioPago == "Tarjeta" || medioPago == "Go Cuotas" ? "1 cuota" : null;
+        }
+
+        public static string ObtenerDescripcionMedioPago(Venta venta)
+        {
+            if (venta == null || string.IsNullOrEmpty(venta.MedioPago))
+                return "Medio no informado";
+            return string.IsNullOrEmpty(venta.CuotaPlan)
+                ? venta.MedioPago
+                : venta.MedioPago + " - " + venta.CuotaPlan;
+        }
         private bool Restaurar(
             List<Venta> ventasOriginales,
             List<DetalleVenta> detallesOriginales,
@@ -258,7 +425,18 @@ namespace SistemaCaminosalDeporte.Negocio
 
         private static Venta ClonarVenta(Venta x)
         {
-            return new Venta { idVenta = x.idVenta, Fecha = x.Fecha, MedioPago = x.MedioPago, MontoTotal = x.MontoTotal, idUsuario = x.idUsuario };
+            return new Venta
+            {
+                idVenta = x.idVenta,
+                Fecha = x.Fecha,
+                MedioPago = x.MedioPago,
+                CuotaPlan = x.CuotaPlan,
+                MontoSubtotal = x.MontoSubtotal,
+                MontoDescuento = x.MontoDescuento,
+                MontoRecargo = x.MontoRecargo,
+                MontoTotal = x.MontoTotal,
+                idUsuario = x.idUsuario
+            };
         }
 
         private static DetalleVenta ClonarDetalle(DetalleVenta x)

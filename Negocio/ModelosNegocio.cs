@@ -8,10 +8,19 @@ namespace SistemaCaminosalDeporte.Negocio
         public int Cantidad { get; set; }
     }
 
+    public class PagoCalculado
+    {
+        public decimal Subtotal { get; set; }
+        public decimal Descuento { get; set; }
+        public decimal Recargo { get; set; }
+        public decimal Total { get; set; }
+    }
+
     public class IngresoReporte
     {
         public DateTime Periodo { get; set; }
         public decimal Total { get; set; }
+        public string MediosPago { get; set; }
     }
 
     public class ProductoVendidoReporte
@@ -30,5 +39,6 @@ namespace SistemaCaminosalDeporte.Negocio
         public int Cantidad { get; set; }
         public decimal Total { get; set; }
         public string MedioPago { get; set; }
+        public string CuotaPlan { get; set; }
     }
 }

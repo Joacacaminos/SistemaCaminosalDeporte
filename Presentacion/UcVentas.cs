@@ -18,8 +18,9 @@ namespace SistemaCaminosalDeporte.Presentacion
         private TextBox txtBuscar;
         private DataGridView dgvCarrito;
         private DataGridView dgvUltimas;
-        private Label lblSubtotal, lblDescMonto, lblTotal;
+        private Label lblSubtotal, lblDescMonto, lblRecargo, lblTotal;
         private ComboBox cmbDescuento;
+        private ComboBox cmbCuotaPlan;
         private readonly List<Button> btnCategorias = new List<Button>();
         private readonly List<Button> btnMediosPago = new List<Button>();
         private readonly ProductoNegocio productoNegocio = new ProductoNegocio();
@@ -155,11 +156,15 @@ namespace SistemaCaminosalDeporte.Presentacion
             btnAgregar.SetBounds(126, 156, 34, 30);
             btnAgregar.Enabled = prod.Stock > 0;
             btnAgregar.Click += (s, e) => Agregar(prod);
+            var btnRestar = Tema.Boton("-");
+            btnRestar.SetBounds(88, 156, 34, 30);
+            btnRestar.Click += (s, e) => Restar(prod.idProducto);
 
             card.Controls.Add(lblFoto);
             card.Controls.Add(lblNombre);
             card.Controls.Add(lblTalles);
             card.Controls.Add(lblPrecio);
+            card.Controls.Add(btnRestar);
             card.Controls.Add(btnAgregar);
             return card;
         }
@@ -197,6 +202,22 @@ namespace SistemaCaminosalDeporte.Presentacion
             dgvCarrito.Columns.Add("Producto", "Producto");
             dgvCarrito.Columns.Add("Cant.", "Cant.");
             dgvCarrito.Columns.Add("Subtotal", "Subtotal");
+            var colQuitar = new DataGridViewButtonColumn
+            {
+                Name = "Quitar",
+                HeaderText = "",
+                Text = "Quitar",
+                UseColumnTextForButtonValue = true
+            };
+            dgvCarrito.Columns.Add(colQuitar);
+            dgvCarrito.CellContentClick += (s, e) =>
+            {
+                if (e.RowIndex >= 0 && e.ColumnIndex == dgvCarrito.Columns["Quitar"].Index)
+                {
+                    dgvCarrito.Rows.RemoveAt(e.RowIndex);
+                    Recalcular();
+                }
+            };
             dgvCarrito.Columns[0].FillWeight = 60;
             dgvCarrito.Columns[1].FillWeight = 20;
             dgvCarrito.Columns[2].FillWeight = 35;
@@ -226,23 +247,44 @@ namespace SistemaCaminosalDeporte.Presentacion
             lblDescMonto = Der(38, 11, false, Tema.Texto);
             pie.Controls.Add(lblDescMonto);
 
+            pie.Controls.Add(Izq("Recargo", 76));
+            lblRecargo = Der(72, 11, false, Tema.Texto);
+            pie.Controls.Add(lblRecargo);
+
             var lblT = Tema.Etiqueta("Total", 15, true);
-            lblT.Location = new Point(0, 84);
+            lblT.Location = new Point(0, 108);
             pie.Controls.Add(lblT);
-            lblTotal = Der(80, 18, true, Tema.Verde);
+            lblTotal = Der(104, 18, true, Tema.Verde);
             lblTotal.Height = 34;
             pie.Controls.Add(lblTotal);
 
             var lblMedio = Tema.Etiqueta("Medio de pago", 9.5f, false, Tema.Gris);
-            lblMedio.Location = new Point(0, 130);
+            lblMedio.Location = new Point(0, 144);
             pie.Controls.Add(lblMedio);
+
+            cmbCuotaPlan = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Tema.Tarjeta,
+                ForeColor = Tema.Texto,
+                Font = Tema.Fuente(9),
+                Bounds = new Rectangle(190, 140, 178, 28),
+                Visible = false
+            };
+            cmbCuotaPlan.SelectedIndexChanged += (s, e) =>
+            {
+                cuotaPlan = cmbCuotaPlan.SelectedItem as string;
+                Recalcular();
+            };
+            pie.Controls.Add(cmbCuotaPlan);
 
             string[] medios = { "Efectivo", "Tarjeta", "QR", "Go Cuotas" };
             for (int i = 0; i < medios.Length; i++)
             {
                 var btnMedioPago = Tema.Boton(medios[i], false);
                 btnMedioPago.Font = Tema.Fuente(9, true);
-                btnMedioPago.SetBounds(i * 94, 156, 86, 52);
+                btnMedioPago.SetBounds(i * 94, 170, 86, 52);
                 btnMedioPago.Tag = medios[i];
                 int idx = i;
                 btnMedioPago.Click += (s, e) => MarcarPago(idx);
@@ -252,7 +294,7 @@ namespace SistemaCaminosalDeporte.Presentacion
 
             var btnFinalizar = Tema.Boton("Finalizar venta");
             btnFinalizar.Font = Tema.Fuente(11, true);
-            btnFinalizar.SetBounds(0, 224, 368, 52);
+            btnFinalizar.SetBounds(0, 238, 368, 52);
             btnFinalizar.Click += FinalizarVenta;
             pie.Controls.Add(btnFinalizar);
             pnl.Controls.Add(pie);
@@ -262,28 +304,6 @@ namespace SistemaCaminosalDeporte.Presentacion
             var lblTitulo = Tema.Etiqueta("Productos en la venta", 12, true);
             lblTitulo.Location = new Point(0, 6);
             pnlCabecera.Controls.Add(lblTitulo);
-            var btnQuitar = Tema.Boton("-1", false);
-            btnQuitar.Dock = DockStyle.Right;
-            btnQuitar.Width = 80;
-            btnQuitar.Click += (s, e) =>
-            {
-                if (dgvCarrito.CurrentRow != null)
-                {
-                    var fila = dgvCarrito.CurrentRow;
-                    var item = (CarritoItem)fila.Tag;
-                    var cantidad = item.Cantidad - 1;
-                    if (cantidad <= 0)
-                        dgvCarrito.Rows.Remove(fila);
-                    else
-                    {
-                        item.Cantidad = cantidad;
-                        fila.Cells[1].Value = cantidad;
-                        ActualizarFila(fila);
-                    }
-                }
-                Recalcular();
-            };
-            pnlCabecera.Controls.Add(btnQuitar);
             pnl.Controls.Add(pnlCabecera);
 
             return pnl;
@@ -373,10 +393,11 @@ namespace SistemaCaminosalDeporte.Presentacion
         {
             decimal sub = Subtotal();
             int pct = int.Parse(((string)cmbDescuento.SelectedItem).TrimEnd('%'));
-            decimal desc = sub * pct / 100;
-            lblSubtotal.Text = Tema.Dinero(sub);
-            lblDescMonto.Text = Tema.Dinero(desc);
-            lblTotal.Text = Tema.Dinero(sub - desc);
+            var pago = ventaNegocio.CalcularPago(sub, medioPago, cuotaPlan, pct);
+            lblSubtotal.Text = Tema.Dinero(pago.Subtotal);
+            lblDescMonto.Text = Tema.Dinero(pago.Descuento);
+            lblRecargo.Text = Tema.Dinero(pago.Recargo);
+            lblTotal.Text = Tema.Dinero(pago.Total);
         }
 
         private void InitializeComponent()
@@ -400,6 +421,41 @@ namespace SistemaCaminosalDeporte.Presentacion
         {
             for (int i = 0; i < btnMediosPago.Count; i++) Tema.Marcar(btnMediosPago[i], i == indice);
             medioPago = (string)btnMediosPago[indice].Tag;
+            if (cmbCuotaPlan != null)
+                ActualizarCuotas();
+        }
+
+        private string cuotaPlan = null;
+
+        private void ActualizarCuotas()
+        {
+            cmbCuotaPlan.Items.Clear();
+            if (medioPago == "Tarjeta")
+                cmbCuotaPlan.Items.AddRange(new object[] { "1 cuota", "3 cuotas", "Plan Z (Tarjeta Naranja)" });
+            else if (medioPago == "Go Cuotas")
+                cmbCuotaPlan.Items.AddRange(new object[] { "1 cuota", "3 cuotas" });
+            cmbCuotaPlan.Visible = cmbCuotaPlan.Items.Count > 0;
+            if (cmbCuotaPlan.Visible)
+                cmbCuotaPlan.SelectedIndex = 0;
+            cuotaPlan = cmbCuotaPlan.Visible ? (string)cmbCuotaPlan.SelectedItem : null;
+            Recalcular();
+        }
+
+        private void Restar(int idProducto)
+        {
+            foreach (DataGridViewRow fila in dgvCarrito.Rows)
+            {
+                var item = (CarritoItem)fila.Tag;
+                if (item.idProducto != idProducto)
+                    continue;
+                item.Cantidad--;
+                if (item.Cantidad <= 0)
+                    dgvCarrito.Rows.Remove(fila);
+                else
+                    ActualizarFila(fila);
+                Recalcular();
+                return;
+            }
         }
 
         private void FinalizarVenta(object sender, EventArgs e)
@@ -419,7 +475,8 @@ namespace SistemaCaminosalDeporte.Presentacion
                 })
                 .ToList();
 
-            var resultado = ventaNegocio.Registrar(lineas, medioPago, SesionActual.Usuario);
+            int pct = int.Parse(((string)cmbDescuento.SelectedItem).TrimEnd('%'));
+            var resultado = ventaNegocio.Registrar(lineas, medioPago, cuotaPlan, pct, SesionActual.Usuario);
             if (!resultado.Exito)
             {
                 MessageBox.Show(resultado.Mensaje, "Registrar venta",
@@ -429,11 +486,14 @@ namespace SistemaCaminosalDeporte.Presentacion
             }
 
             string total = Tema.Dinero(resultado.Valor.MontoTotal);
-            MessageBox.Show(resultado.Mensaje + "\nTotal: " + total + "\nMedio de pago: " + medioPago,
+            MessageBox.Show(resultado.Mensaje + "\nSubtotal: " + Tema.Dinero(resultado.Valor.MontoSubtotal)
+                + "\nRecargo: " + Tema.Dinero(resultado.Valor.MontoRecargo)
+                + "\nTotal: " + total + "\nMedio de pago: " + VentaNegocio.ObtenerDescripcionMedioPago(resultado.Valor),
                 "Registrar venta", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
             dgvCarrito.Rows.Clear();
             cmbDescuento.SelectedIndex = 0;
+            ActualizarCuotas();
             Recalcular();
             CargarProductos();
             CargarUltimas();
