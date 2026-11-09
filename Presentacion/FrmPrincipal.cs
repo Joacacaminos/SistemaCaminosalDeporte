@@ -525,6 +525,397 @@ internal sealed class FrmOperacionStock : Form
     }
 }
 
+internal static class VistaRealUtil
+{
+    public static Button Boton(string texto, bool primario, EventHandler accion)
+    {
+        var boton = Tema.Boton(texto, primario);
+        boton.AutoSize = true;
+        boton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        boton.Padding = new Padding(10, 0, 10, 0);
+        boton.Margin = new Padding(0, 0, 8, 0);
+        boton.Click += accion;
+        return boton;
+    }
+
+    public static Label Tarjeta(FlowLayoutPanel fila, string titulo)
+    {
+        var tarjeta = Tema.NuevaTarjeta();
+        tarjeta.Size = new Size(250, 84);
+        tarjeta.Margin = new Padding(0, 0, 12, 12);
+        var etiqueta = Tema.Etiqueta(titulo, 9.5f, false, Tema.Gris);
+        etiqueta.Location = new Point(14, 12);
+        var valor = Tema.Etiqueta("0", 18, true, Tema.Verde);
+        valor.Location = new Point(14, 36);
+        tarjeta.Controls.Add(etiqueta);
+        tarjeta.Controls.Add(valor);
+        fila.Controls.Add(tarjeta);
+        return valor;
+    }
+
+    public static decimal Total(Resultado<List<IngresoReporte>> resultado)
+    {
+        return resultado != null && resultado.Exito && resultado.Valor != null
+            ? resultado.Valor.Sum(x => x.Total)
+            : 0m;
+    }
+}
+
+internal sealed class UcInicioReal : UserControl
+{
+    private readonly ReporteNegocio reportes = new ReporteNegocio();
+    private readonly StockNegocio stock = new StockNegocio();
+    private readonly VentaNegocio ventas = new VentaNegocio();
+
+    public UcInicioReal()
+    {
+        BackColor = Tema.Fondo;
+        var grilla = Tema.NuevaGrilla();
+        grilla.Dock = DockStyle.Fill;
+        foreach (var columna in new[] { "Fecha", "Comprobante", "Producto", "Cant.", "Total", "Medio de pago" })
+            grilla.Columns.Add(columna, columna);
+        Controls.Add(grilla);
+
+        var tarjetas = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 104, BackColor = Color.Transparent };
+        var hoy = DateTime.Today;
+        var semana = hoy.AddDays(-((int)hoy.DayOfWeek + 6) % 7);
+        var mes = new DateTime(hoy.Year, hoy.Month, 1);
+        VistaRealUtil.Tarjeta(tarjetas, "Ventas de hoy").Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorDia(hoy, hoy)));
+        VistaRealUtil.Tarjeta(tarjetas, "Ventas de la semana").Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorSemana(semana, hoy)));
+        VistaRealUtil.Tarjeta(tarjetas, "Ventas del mes").Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorMes(mes, hoy)));
+        var bajo = stock.ListarStockBajo(5);
+        VistaRealUtil.Tarjeta(tarjetas, "Productos con stock bajo").Text =
+            bajo.Exito ? bajo.Valor.Count.ToString() : "0";
+        Controls.Add(tarjetas);
+
+        var ultimas = ventas.UltimasVentas();
+        if (!ultimas.Exito)
+        {
+            MessageBox.Show(ultimas.Mensaje, "Inicio", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        foreach (var venta in ultimas.Valor)
+            grilla.Rows.Add(venta.Fecha.ToString("dd/MM - HH:mm"), venta.idVenta.ToString("000000"),
+                venta.Producto, venta.Cantidad, Tema.Dinero(venta.Total), venta.MedioPago);
+    }
+}
+
+internal sealed class UcReportesReal : UserControl
+{
+    private readonly ReporteNegocio negocio = new ReporteNegocio();
+    private readonly DataGridView grillaIngresos = Tema.NuevaGrilla();
+    private readonly DataGridView grillaProductos = Tema.NuevaGrilla();
+    private readonly Label lblTotal;
+    private readonly Label lblRegistros;
+    private readonly Label lblProductos;
+    private List<IngresoReporte> ingresosActuales = new List<IngresoReporte>();
+    private string periodoActual = "Diario";
+
+    public UcReportesReal()
+    {
+        BackColor = Tema.Fondo;
+        grillaIngresos.Dock = DockStyle.Fill;
+        grillaIngresos.Columns.Add("Periodo", "Periodo");
+        grillaIngresos.Columns.Add("Total", "Total");
+        Controls.Add(grillaIngresos);
+
+        grillaProductos.Dock = DockStyle.Bottom;
+        grillaProductos.Height = 180;
+        grillaProductos.Columns.Add("Producto", "Producto");
+        grillaProductos.Columns.Add("Cantidad", "Cantidad vendida");
+        grillaProductos.Columns.Add("Total", "Ingresos");
+        Controls.Add(grillaProductos);
+
+        var tarjetas = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 104, BackColor = Color.Transparent };
+        lblTotal = VistaRealUtil.Tarjeta(tarjetas, "Total del período");
+        lblRegistros = VistaRealUtil.Tarjeta(tarjetas, "Períodos");
+        lblProductos = VistaRealUtil.Tarjeta(tarjetas, "Productos vendidos");
+        Controls.Add(tarjetas);
+
+        var barra = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.Transparent };
+        barra.Controls.Add(VistaRealUtil.Boton("Diario", true, (s, e) => Cargar("Diario")));
+        barra.Controls.Add(VistaRealUtil.Boton("Semanal", false, (s, e) => Cargar("Semanal")));
+        barra.Controls.Add(VistaRealUtil.Boton("Mensual", false, (s, e) => Cargar("Mensual")));
+        barra.Controls.Add(VistaRealUtil.Boton("Exportar", false, Exportar));
+        Controls.Add(barra);
+        Cargar(periodoActual);
+    }
+
+    private void Cargar(string periodo)
+    {
+        periodoActual = periodo;
+        var hasta = DateTime.Today;
+        var desde = hasta.AddYears(-1);
+        Resultado<List<IngresoReporte>> resultado;
+        if (periodo == "Semanal")
+            resultado = negocio.IngresosPorSemana(desde, hasta);
+        else if (periodo == "Mensual")
+            resultado = negocio.IngresosPorMes(desde, hasta);
+        else
+            resultado = negocio.IngresosPorDia(desde, hasta);
+
+        if (!resultado.Exito)
+        {
+            MessageBox.Show(resultado.Mensaje, "Reportes", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        ingresosActuales = resultado.Valor;
+        grillaIngresos.Rows.Clear();
+        foreach (var ingreso in ingresosActuales)
+            grillaIngresos.Rows.Add(ingreso.Periodo.ToString(periodo == "Diario" ? "dd/MM/yyyy" : "MM/yyyy"), Tema.Dinero(ingreso.Total));
+
+        var productos = negocio.ProductosMasVendidos();
+        grillaProductos.Rows.Clear();
+        if (productos.Exito)
+            foreach (var producto in productos.Valor.Take(10))
+                grillaProductos.Rows.Add(producto.Nombre, producto.Cantidad, Tema.Dinero(producto.Total));
+
+        lblTotal.Text = Tema.Dinero(ingresosActuales.Sum(x => x.Total));
+        lblRegistros.Text = ingresosActuales.Count.ToString();
+        lblProductos.Text = productos.Exito ? productos.Valor.Sum(x => x.Cantidad).ToString() : "0";
+    }
+
+    private void Exportar(object sender, EventArgs e)
+    {
+        using (var dialogo = new SaveFileDialog { Filter = "CSV (*.csv)|*.csv", FileName = "reporte_" + periodoActual.ToLowerInvariant() + ".csv" })
+        {
+            if (dialogo.ShowDialog(FindForm()) != DialogResult.OK)
+                return;
+            var resultado = negocio.ExportarIngresosCsv(ingresosActuales, dialogo.FileName);
+            MessageBox.Show(resultado.Mensaje, "Reportes", MessageBoxButtons.OK,
+                resultado.Exito ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+        }
+    }
+}
+
+internal sealed class UcUsuariosReal : UserControl
+{
+    private readonly UsuarioNegocio negocio = new UsuarioNegocio();
+    private readonly DataGridView grilla = Tema.NuevaGrilla();
+
+    public UcUsuariosReal()
+    {
+        BackColor = Tema.Fondo;
+        grilla.Dock = DockStyle.Fill;
+        foreach (var columna in new[] { "Id", "Nombre", "Usuario", "Rol", "Estado" })
+            grilla.Columns.Add(columna, columna);
+        Controls.Add(grilla);
+        var barra = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.Transparent };
+        barra.Controls.Add(VistaRealUtil.Boton("Nuevo usuario", true, Nuevo));
+        barra.Controls.Add(VistaRealUtil.Boton("Editar", false, Editar));
+        barra.Controls.Add(VistaRealUtil.Boton("Desactivar", false, Desactivar));
+        Controls.Add(barra);
+        Cargar();
+    }
+
+    private void Cargar()
+    {
+        var resultado = negocio.Listar();
+        if (!resultado.Exito)
+        {
+            MessageBox.Show(resultado.Mensaje, "Usuarios", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        grilla.Rows.Clear();
+        foreach (var usuario in resultado.Valor.OrderBy(x => x.Nombre))
+        {
+            var fila = grilla.Rows[grilla.Rows.Add(usuario.idUsuario, usuario.Nombre, usuario.NombreUsuario, usuario.Rol, "Activo")];
+            fila.Tag = usuario;
+        }
+    }
+
+    private Usuario Seleccionado()
+    {
+        return grilla.CurrentRow == null ? null : grilla.CurrentRow.Tag as Usuario;
+    }
+
+    private void Nuevo(object sender, EventArgs e)
+    {
+        using (var formulario = new FrmUsuarioModal(null))
+        {
+            if (formulario.ShowDialog(FindForm()) != DialogResult.OK) return;
+            var resultado = negocio.Alta(formulario.Nombre, formulario.NombreUsuario, formulario.Contraseña, formulario.Rol);
+            Mostrar(resultado);
+            if (resultado.Exito) Cargar();
+        }
+    }
+
+    private void Editar(object sender, EventArgs e)
+    {
+        var usuario = Seleccionado();
+        if (usuario == null) { AvisarSeleccion(); return; }
+        using (var formulario = new FrmUsuarioModal(usuario))
+        {
+            if (formulario.ShowDialog(FindForm()) != DialogResult.OK) return;
+            var resultado = negocio.Editar(usuario.idUsuario, formulario.Nombre, formulario.NombreUsuario,
+                formulario.Rol, formulario.Contraseña);
+            Mostrar(resultado);
+            if (resultado.Exito) Cargar();
+        }
+    }
+
+    private void Desactivar(object sender, EventArgs e)
+    {
+        var usuario = Seleccionado();
+        if (usuario == null) { AvisarSeleccion(); return; }
+        if (MessageBox.Show("¿Querés desactivar a " + usuario.Nombre + "?", "Usuarios",
+            MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        var resultado = negocio.Desactivar(usuario.idUsuario);
+        Mostrar(resultado);
+        if (resultado.Exito) Cargar();
+    }
+
+    private void AvisarSeleccion()
+    {
+        MessageBox.Show("Seleccioná un usuario.", "Usuarios", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private static void Mostrar(Resultado resultado)
+    {
+        MessageBox.Show(resultado.Mensaje, "Usuarios", MessageBoxButtons.OK,
+            resultado.Exito ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+    }
+
+    private static void Mostrar(Resultado<Usuario> resultado)
+    {
+        MessageBox.Show(resultado.Mensaje, "Usuarios", MessageBoxButtons.OK,
+            resultado.Exito ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+    }
+}
+
+internal sealed class FrmUsuarioModal : Form
+{
+    private readonly TextBox txtNombre = Tema.Caja("Nombre");
+    private readonly TextBox txtUsuario = Tema.Caja("Usuario");
+    private readonly TextBox txtContraseña = Tema.Caja("Contraseña");
+    private readonly ComboBox cmbRol = new ComboBox();
+    private readonly bool editar;
+
+    public int IdUsuario { get; private set; }
+    public string Nombre { get { return txtNombre.Text.Trim(); } }
+    public string NombreUsuario { get { return txtUsuario.Text.Trim(); } }
+    public string Contraseña { get { return txtContraseña.Text; } }
+    public string Rol { get { return cmbRol.SelectedItem == null ? string.Empty : cmbRol.SelectedItem.ToString(); } }
+
+    public FrmUsuarioModal(Usuario usuario)
+    {
+        editar = usuario != null;
+        IdUsuario = usuario == null ? 0 : usuario.idUsuario;
+        Text = editar ? "Editar usuario" : "Nuevo usuario";
+        ClientSize = new Size(450, 285);
+        StartPosition = FormStartPosition.CenterParent;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        BackColor = Tema.Fondo;
+        AgregarCampo("Nombre", txtNombre, 20);
+        AgregarCampo("Usuario", txtUsuario, 68);
+        AgregarCampo("Contraseña", txtContraseña, 116);
+        var lblRol = Tema.Etiqueta("Rol", 9.5f, false, Tema.Gris);
+        lblRol.SetBounds(20, 164, 150, 22);
+        cmbRol.SetBounds(180, 161, 240, 28);
+        cmbRol.DropDownStyle = ComboBoxStyle.DropDownList;
+        cmbRol.Items.AddRange(new object[] { "Dueño", "Empleado", "Administrador" });
+        Controls.Add(lblRol);
+        Controls.Add(cmbRol);
+        if (usuario != null)
+        {
+            txtNombre.Text = usuario.Nombre;
+            txtUsuario.Text = usuario.NombreUsuario;
+            cmbRol.SelectedItem = usuario.Rol;
+        }
+        else cmbRol.SelectedIndex = 1;
+
+        var cancelar = Tema.Boton("Cancelar", false);
+        cancelar.SetBounds(220, 220, 95, 40);
+        cancelar.DialogResult = DialogResult.Cancel;
+        Controls.Add(cancelar);
+        var aceptar = Tema.Boton("Guardar");
+        aceptar.SetBounds(325, 220, 95, 40);
+        aceptar.Click += Aceptar;
+        Controls.Add(aceptar);
+        AcceptButton = aceptar;
+        CancelButton = cancelar;
+    }
+
+    private void AgregarCampo(string texto, TextBox caja, int y)
+    {
+        var etiqueta = Tema.Etiqueta(texto, 9.5f, false, Tema.Gris);
+        etiqueta.SetBounds(20, y, 150, 22);
+        caja.SetBounds(180, y - 3, 240, 28);
+        if (caja == txtContraseña) caja.UseSystemPasswordChar = true;
+        Controls.Add(etiqueta);
+        Controls.Add(caja);
+    }
+
+    private void Aceptar(object sender, EventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(Nombre) || string.IsNullOrWhiteSpace(NombreUsuario) || string.IsNullOrWhiteSpace(Rol))
+        {
+            MessageBox.Show("Nombre, usuario y rol son obligatorios.", "Usuarios", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        if (string.IsNullOrEmpty(Contraseña))
+        {
+            MessageBox.Show("La contraseña no puede quedar vacía.", "Usuarios", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        DialogResult = DialogResult.OK;
+        Close();
+    }
+}
+
+internal sealed class UcConfiguracionReal : UserControl
+{
+    private readonly CopiaSeguridadNegocio negocio = new CopiaSeguridadNegocio();
+
+    public UcConfiguracionReal()
+    {
+        BackColor = Tema.Fondo;
+        var tarjeta = Tema.NuevaTarjeta();
+        tarjeta.SetBounds(0, 0, 620, 220);
+        var titulo = Tema.Etiqueta("Copia de seguridad", 12, true);
+        titulo.Location = new Point(20, 16);
+        var detalle = Tema.Etiqueta("Copia y restaura los archivos XML del sistema.", 9, false, Tema.Gris);
+        detalle.Location = new Point(20, 46);
+        var crear = Tema.Boton("Crear copia ahora");
+        crear.SetBounds(20, 90, 250, 42);
+        crear.Click += CrearCopia;
+        var restaurar = Tema.Boton("Restaurar copia", false);
+        restaurar.SetBounds(285, 90, 250, 42);
+        restaurar.Click += RestaurarCopia;
+        tarjeta.Controls.Add(titulo);
+        tarjeta.Controls.Add(detalle);
+        tarjeta.Controls.Add(crear);
+        tarjeta.Controls.Add(restaurar);
+        Controls.Add(tarjeta);
+    }
+
+    private void CrearCopia(object sender, EventArgs e)
+    {
+        using (var dialogo = new FolderBrowserDialog { Description = "Elegí dónde guardar la copia" })
+        {
+            if (dialogo.ShowDialog(FindForm()) != DialogResult.OK) return;
+            var resultado = negocio.CrearCopia(dialogo.SelectedPath);
+            MessageBox.Show(resultado.Mensaje, "Configuración", MessageBoxButtons.OK,
+                resultado.Exito ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+        }
+    }
+
+    private void RestaurarCopia(object sender, EventArgs e)
+    {
+        using (var dialogo = new FolderBrowserDialog { Description = "Elegí la carpeta de la copia a restaurar" })
+        {
+            if (dialogo.ShowDialog(FindForm()) != DialogResult.OK) return;
+            if (MessageBox.Show("La restauración reemplazará los XML actuales. ¿Continuar?", "Configuración",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            var resultado = negocio.RestaurarCopia(dialogo.SelectedPath);
+            MessageBox.Show(resultado.Mensaje, "Configuración", MessageBoxButtons.OK,
+                resultado.Exito ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+        }
+    }
+}
+
 public partial class FrmPrincipal
 {
         // ---------------------------------------------------------- menú lateral
@@ -702,23 +1093,7 @@ public partial class FrmPrincipal
         // ---------------------------------------------------------- vistas
         private Control VistaInicio()
         {
-            return new UcTabla(
-                new[]
-                {
-                    new[] { "Ventas de hoy", "$ 78.970" },
-                    new[] { "Ventas de la semana", "$ 412.300" },
-                    new[] { "Ventas del mes", "$ 1.640.500" },
-                    new[] { "Productos con stock bajo", "4" }
-                },
-                null,
-                new[] { "Fecha", "Comprobante", "Producto", "Cant.", "Total", "Medio de pago" },
-                new[]
-                {
-                    new[] { "27/10 - 09:45", "000124", "Remera training (L)", "1", "$ 15.990", "Tarjeta" },
-                    new[] { "26/10 - 18:37", "000123", "Short deportivo (M)", "1", "$ 12.990", "Efectivo" },
-                    new[] { "26/10 - 17:10", "000122", "Zapatillas running (42)", "1", "$ 49.990", "QR" },
-                    new[] { "25/10 - 16:23", "000121", "Mochila deportiva", "1", "$ 8.990", "Tarjeta" }
-                });
+            return new UcInicioReal();
         }
 
         private Control VistaProductos()
@@ -733,60 +1108,17 @@ public partial class FrmPrincipal
 
         private Control VistaReportes()
         {
-            return new UcTabla(
-                new[]
-                {
-                    new[] { "Ingresos de hoy", "$ 78.970" },
-                    new[] { "Ingresos de la semana", "$ 412.300" },
-                    new[] { "Ingresos del mes", "$ 1.640.500" }
-                },
-                new[] { "Diario", "Semanal", "Mensual", "Exportar" },
-                new[] { "Fecha", "Ventas", "Efectivo", "Tarjeta", "QR", "Go Cuotas", "Total" },
-                new[]
-                {
-                    new[] { "27/10/2025", "6", "$ 25.980", "$ 31.980", "$ 12.990", "$ 8.020", "$ 78.970" },
-                    new[] { "26/10/2025", "9", "$ 40.500", "$ 55.200", "$ 49.990", "$ 0", "$ 145.690" },
-                    new[] { "25/10/2025", "4", "$ 15.000", "$ 28.480", "$ 0", "$ 22.990", "$ 66.470" }
-                });
+            return new UcReportesReal();
         }
 
         private Control VistaUsuarios()
         {
-            return new UcTabla(
-                null,
-                new[] { "Nuevo usuario", "Editar", "Desactivar" },
-                new[] { "Id", "Nombre", "Usuario", "Rol", "Estado" },
-                new[]
-                {
-                    new[] { "1", "Gustavo Caminos", "gcaminos", "Dueño", "Activo" },
-                    new[] { "2", "Empleado", "empleado1", "Empleado", "Activo" },
-                    new[] { "3", "Administrador", "admin", "Administrador", "Activo" }
-                });
+            return new UcUsuariosReal();
         }
 
         private Control VistaConfiguracion()
         {
-            var p = new Panel { BackColor = Tema.Fondo };
-            var tarjeta = Tema.NuevaTarjeta();
-            tarjeta.SetBounds(0, 0, 460, 190);
-
-            var t = Tema.Etiqueta("Copia de seguridad", 12, true);
-            t.Location = new Point(20, 16);
-            var d = Tema.Etiqueta("Guarda una copia de la base de datos para evitar pérdida de información.", 9, false, Tema.Gris);
-            d.Location = new Point(20, 46);
-            var btnCopia = Tema.Boton("Crear copia ahora");
-            btnCopia.SetBounds(20, 84, 200, 42);
-            btnCopia.Click += (s, e) => MessageBox.Show("Copia de seguridad creada (demo).", "Configuración",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
-            var btnRest = Tema.Boton("Restaurar copia", false);
-            btnRest.SetBounds(230, 84, 200, 42);
-
-            tarjeta.Controls.Add(t);
-            tarjeta.Controls.Add(d);
-            tarjeta.Controls.Add(btnCopia);
-            tarjeta.Controls.Add(btnRest);
-            p.Controls.Add(tarjeta);
-            return p;
+            return new UcConfiguracionReal();
         }
     }
 }

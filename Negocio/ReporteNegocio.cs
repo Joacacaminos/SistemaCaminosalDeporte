@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
 using SistemaCaminosalDeporte.Datos;
 using SistemaCaminosalDeporte.Entidades;
 
@@ -15,6 +17,27 @@ namespace SistemaCaminosalDeporte.Negocio
         public ReporteNegocio()
             : this(new VentaDatos(), new DetalleVentaDatos(), new ProductoDatos())
         {
+        }
+
+        public Resultado ExportarIngresosCsv(IEnumerable<IngresoReporte> ingresos, string rutaArchivo)
+        {
+            if (ingresos == null)
+                return Resultado.Error("No hay datos de ingresos para exportar.");
+            if (string.IsNullOrWhiteSpace(rutaArchivo))
+                return Resultado.Error("La ruta del archivo es obligatoria.");
+
+            try
+            {
+                var lineas = new List<string> { "Periodo;Total" };
+                lineas.AddRange(ingresos.Select(x =>
+                    x.Periodo.ToString("dd/MM/yyyy") + ";" + x.Total.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)));
+                File.WriteAllLines(rutaArchivo, lineas, Encoding.UTF8);
+                return Resultado.Ok("Reporte exportado correctamente.");
+            }
+            catch (Exception ex)
+            {
+                return Resultado.Error("No se pudo exportar el reporte: " + ex.Message);
+            }
         }
 
         public ReporteNegocio(VentaDatos ventas, DetalleVentaDatos detalles, ProductoDatos productos)

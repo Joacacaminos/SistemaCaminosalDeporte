@@ -21,6 +21,21 @@ namespace SistemaCaminosalDeporte.Negocio
             this.datos = datos ?? throw new ArgumentNullException(nameof(datos));
         }
 
+        public Resultado<System.Collections.Generic.List<Usuario>> Listar(bool incluirInactivos = false)
+        {
+            try
+            {
+                var usuarios = datos.ObtenerTodos();
+                if (!incluirInactivos)
+                    usuarios = usuarios.Where(x => x.Activo).ToList();
+                return Resultado<System.Collections.Generic.List<Usuario>>.Ok(usuarios);
+            }
+            catch (Exception ex)
+            {
+                return Resultado<System.Collections.Generic.List<Usuario>>.Error("No se pudieron listar los usuarios: " + ex.Message);
+            }
+        }
+
         public Resultado<Usuario> Login(string usuario, string contraseña)
         {
             if (string.IsNullOrWhiteSpace(usuario) || string.IsNullOrEmpty(contraseña))
@@ -81,6 +96,8 @@ namespace SistemaCaminosalDeporte.Negocio
         {
             if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(nombreUsuario))
                 return Resultado<Usuario>.Error("Nombre y usuario son obligatorios.");
+            if (string.IsNullOrEmpty(contraseña))
+                return Resultado<Usuario>.Error("La contraseña no puede quedar vacía.");
             if (!RolValido(rol))
                 return Resultado<Usuario>.Error("El rol debe ser Dueño, Empleado o Administrador.");
 
@@ -99,8 +116,7 @@ namespace SistemaCaminosalDeporte.Negocio
                 usuario.Nombre = nombre.Trim();
                 usuario.NombreUsuario = nombreUsuario.Trim();
                 usuario.Rol = rol;
-                if (!string.IsNullOrEmpty(contraseña))
-                    usuario.ContraseñaHash = CalcularSha256(contraseña);
+                usuario.ContraseñaHash = CalcularSha256(contraseña);
                 datos.Guardar();
                 return Resultado<Usuario>.Ok(usuario, "Usuario actualizado correctamente.");
             }
@@ -112,6 +128,9 @@ namespace SistemaCaminosalDeporte.Negocio
 
         public Resultado Desactivar(int idUsuario)
         {
+            if (SesionActual.Usuario != null && SesionActual.Usuario.idUsuario == idUsuario)
+                return Resultado.Error("No se puede desactivar el usuario que tiene la sesión abierta.");
+
             try
             {
                 var usuario = datos.ObtenerPorId(idUsuario);
@@ -120,8 +139,6 @@ namespace SistemaCaminosalDeporte.Negocio
 
                 usuario.Activo = false;
                 datos.Guardar();
-                if (SesionActual.Usuario != null && SesionActual.Usuario.idUsuario == idUsuario)
-                    SesionActual.Cerrar();
                 return Resultado.Ok("Usuario desactivado correctamente.");
             }
             catch (Exception ex)
