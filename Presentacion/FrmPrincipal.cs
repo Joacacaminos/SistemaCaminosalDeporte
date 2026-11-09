@@ -9,6 +9,7 @@ using SistemaCaminosalDeporte.Negocio;
 
 namespace SistemaCaminosalDeporte.Presentacion
 {
+    /// <summary>Ventana principal y navegación por las funcionalidades del sistema.</summary>
     public partial class FrmPrincipal : Form  
     {
         private static readonly string[] Secciones =
@@ -43,37 +44,38 @@ namespace SistemaCaminosalDeporte.Presentacion
         }
     }
 
+/// <summary>Vista de productos activos conectada a ProductoNegocio.</summary>
 internal sealed class UcProductosReales : UserControl
 {
     private readonly ProductoNegocio negocio = new ProductoNegocio();
-    private readonly DataGridView grilla;
+    private readonly DataGridView dgvProductos;
 
     public UcProductosReales()
     {
         BackColor = Tema.Fondo;
-        grilla = Tema.NuevaGrilla();
-        grilla.Dock = DockStyle.Fill;
+        dgvProductos = Tema.NuevaGrilla();
+        dgvProductos.Dock = DockStyle.Fill;
         foreach (var columna in new[] { "Id", "Nombre", "Tipo", "Talle", "Color", "Precio", "Stock" })
-            grilla.Columns.Add(columna, columna);
-        Controls.Add(grilla);
+            dgvProductos.Columns.Add(columna, columna);
+        Controls.Add(dgvProductos);
 
-        var barra = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.Transparent };
-        AgregarBoton(barra, "Nuevo producto", true, NuevoProducto);
-        AgregarBoton(barra, "Editar", false, EditarProducto);
-        AgregarBoton(barra, "Eliminar", false, EliminarProducto);
-        Controls.Add(barra);
+        var pnlAcciones = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.Transparent };
+        AgregarBoton(pnlAcciones, "Nuevo producto", true, NuevoProducto);
+        AgregarBoton(pnlAcciones, "Editar", false, EditarProducto);
+        AgregarBoton(pnlAcciones, "Eliminar", false, EliminarProducto);
+        Controls.Add(pnlAcciones);
         CargarProductos();
     }
 
-    private static void AgregarBoton(FlowLayoutPanel barra, string texto, bool primario, EventHandler accion)
+    private static void AgregarBoton(FlowLayoutPanel pnlAcciones, string texto, bool primario, EventHandler accion)
     {
-        var boton = Tema.Boton(texto, primario);
-        boton.AutoSize = true;
-        boton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        boton.Padding = new Padding(10, 0, 10, 0);
-        boton.Margin = new Padding(0, 0, 8, 0);
-        boton.Click += accion;
-        barra.Controls.Add(boton);
+        var btnAccion = Tema.Boton(texto, primario);
+        btnAccion.AutoSize = true;
+        btnAccion.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        btnAccion.Padding = new Padding(10, 0, 10, 0);
+        btnAccion.Margin = new Padding(0, 0, 8, 0);
+        btnAccion.Click += accion;
+        pnlAcciones.Controls.Add(btnAccion);
     }
 
     private void CargarProductos()
@@ -85,10 +87,10 @@ internal sealed class UcProductosReales : UserControl
             return;
         }
 
-        grilla.Rows.Clear();
+        dgvProductos.Rows.Clear();
         foreach (var producto in resultado.Valor.OrderBy(x => x.Nombre))
         {
-            var fila = grilla.Rows[grilla.Rows.Add(
+            var fila = dgvProductos.Rows[dgvProductos.Rows.Add(
                 producto.idProducto,
                 producto.Nombre,
                 producto.Tipo,
@@ -102,7 +104,7 @@ internal sealed class UcProductosReales : UserControl
 
     private Producto ProductoSeleccionado()
     {
-        var fila = grilla.CurrentRow;
+        var fila = dgvProductos.CurrentRow;
         return fila == null ? null : fila.Tag as Producto;
     }
 
@@ -181,11 +183,12 @@ internal sealed class UcProductosReales : UserControl
     }
 }
 
+/// <summary>Vista de existencias y movimientos conectada a StockNegocio.</summary>
 internal sealed class UcStockReal : UserControl
 {
     private readonly ProductoNegocio productos = new ProductoNegocio();
     private readonly StockNegocio stock = new StockNegocio();
-    private readonly DataGridView grilla;
+    private readonly DataGridView dgvStock;
     private readonly Label lblPrendas;
     private readonly Label lblBajo;
     private readonly Label lblSinStock;
@@ -193,17 +196,17 @@ internal sealed class UcStockReal : UserControl
     public UcStockReal()
     {
         BackColor = Tema.Fondo;
-        grilla = Tema.NuevaGrilla();
-        grilla.Dock = DockStyle.Fill;
+        dgvStock = Tema.NuevaGrilla();
+        dgvStock.Dock = DockStyle.Fill;
         foreach (var columna in new[] { "Producto", "Talle", "Color", "Stock", "Estado" })
-            grilla.Columns.Add(columna, columna);
-        grilla.CellFormatting += ColorearEstado;
-        Controls.Add(grilla);
+            dgvStock.Columns.Add(columna, columna);
+        dgvStock.CellFormatting += ColorearEstado;
+        Controls.Add(dgvStock);
 
-        var barra = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.Transparent };
-        AgregarBoton(barra, "Registrar ingreso de mercadería", true, IngresarMercaderia);
-        AgregarBoton(barra, "Ajustar cantidad", false, AjustarCantidad);
-        Controls.Add(barra);
+        var pnlAcciones = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.Transparent };
+        AgregarBoton(pnlAcciones, "Registrar ingreso de mercadería", true, IngresarMercaderia);
+        AgregarBoton(pnlAcciones, "Ajustar cantidad", false, AjustarCantidad);
+        Controls.Add(pnlAcciones);
 
         var resumen = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 104, BackColor = Color.Transparent };
         lblPrendas = AgregarResumen(resumen, "Prendas en stock");
@@ -213,28 +216,28 @@ internal sealed class UcStockReal : UserControl
         CargarStock();
     }
 
-    private static void AgregarBoton(FlowLayoutPanel barra, string texto, bool primario, EventHandler accion)
+    private static void AgregarBoton(FlowLayoutPanel pnlAcciones, string texto, bool primario, EventHandler accion)
     {
-        var boton = Tema.Boton(texto, primario);
-        boton.AutoSize = true;
-        boton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        boton.Padding = new Padding(10, 0, 10, 0);
-        boton.Margin = new Padding(0, 0, 8, 0);
-        boton.Click += accion;
-        barra.Controls.Add(boton);
+        var btnAccion = Tema.Boton(texto, primario);
+        btnAccion.AutoSize = true;
+        btnAccion.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        btnAccion.Padding = new Padding(10, 0, 10, 0);
+        btnAccion.Margin = new Padding(0, 0, 8, 0);
+        btnAccion.Click += accion;
+        pnlAcciones.Controls.Add(btnAccion);
     }
 
     private static Label AgregarResumen(FlowLayoutPanel fila, string titulo)
     {
-        var tarjeta = Tema.NuevaTarjeta();
-        tarjeta.Size = new Size(250, 84);
-        tarjeta.Margin = new Padding(0, 0, 12, 12);
-        tarjeta.Controls.Add(Tema.Etiqueta(titulo, 9.5f, false, Tema.Gris));
-        tarjeta.Controls[0].Location = new Point(14, 12);
+        var pnlTarjeta = Tema.NuevaTarjeta();
+        pnlTarjeta.Size = new Size(250, 84);
+        pnlTarjeta.Margin = new Padding(0, 0, 12, 12);
+        pnlTarjeta.Controls.Add(Tema.Etiqueta(titulo, 9.5f, false, Tema.Gris));
+        pnlTarjeta.Controls[0].Location = new Point(14, 12);
         var valor = Tema.Etiqueta("0", 18, true, Tema.Verde);
         valor.Location = new Point(14, 36);
-        tarjeta.Controls.Add(valor);
-        fila.Controls.Add(tarjeta);
+        pnlTarjeta.Controls.Add(valor);
+        fila.Controls.Add(pnlTarjeta);
         return valor;
     }
 
@@ -248,10 +251,10 @@ internal sealed class UcStockReal : UserControl
         }
 
         var lista = resultado.Valor.OrderBy(x => x.Nombre).ToList();
-        grilla.Rows.Clear();
+        dgvStock.Rows.Clear();
         foreach (var producto in lista)
         {
-            var fila = grilla.Rows[grilla.Rows.Add(
+            var fila = dgvStock.Rows[dgvStock.Rows.Add(
                 producto.Nombre,
                 producto.Talle,
                 producto.Color,
@@ -273,7 +276,7 @@ internal sealed class UcStockReal : UserControl
 
     private void ColorearEstado(object sender, DataGridViewCellFormattingEventArgs e)
     {
-        if (e.RowIndex < 0 || e.Value == null || grilla.Columns[e.ColumnIndex].Name != "Estado")
+        if (e.RowIndex < 0 || e.Value == null || dgvStock.Columns[e.ColumnIndex].Name != "Estado")
             return;
         var estado = e.Value.ToString();
         e.CellStyle.ForeColor = estado == "OK" ? Tema.Verde : Tema.Rojo;
@@ -281,7 +284,7 @@ internal sealed class UcStockReal : UserControl
 
     private Producto ProductoSeleccionado()
     {
-        var fila = grilla.CurrentRow;
+        var fila = dgvStock.CurrentRow;
         return fila == null ? null : fila.Tag as Producto;
     }
 
@@ -342,6 +345,7 @@ internal sealed class UcStockReal : UserControl
     }
 }
 
+/// <summary>Formulario modal para alta y edición de productos.</summary>
 internal sealed class FrmProductoModal : Form
 {
     private readonly TextBox txtNombre = Tema.Caja("Nombre");
@@ -381,16 +385,16 @@ internal sealed class FrmProductoModal : Form
             txtStock.Text = existente.Stock.ToString();
         }
 
-        var cancelar = Tema.Boton("Cancelar", false);
-        cancelar.SetBounds(210, 340, 95, 40);
-        cancelar.DialogResult = DialogResult.Cancel;
-        Controls.Add(cancelar);
-        var guardar = Tema.Boton("Guardar");
-        guardar.SetBounds(315, 340, 95, 40);
-        guardar.Click += Guardar;
-        Controls.Add(guardar);
-        AcceptButton = guardar;
-        CancelButton = cancelar;
+        var btnCancelar = Tema.Boton("Cancelar", false);
+        btnCancelar.SetBounds(210, 340, 95, 40);
+        btnCancelar.DialogResult = DialogResult.Cancel;
+        Controls.Add(btnCancelar);
+        var btnGuardar = Tema.Boton("Guardar");
+        btnGuardar.SetBounds(315, 340, 95, 40);
+        btnGuardar.Click += Guardar;
+        Controls.Add(btnGuardar);
+        AcceptButton = btnGuardar;
+        CancelButton = btnCancelar;
     }
 
     private void AgregarCampo(string etiqueta, TextBox caja, int y)
@@ -442,6 +446,7 @@ internal sealed class FrmProductoModal : Form
     }
 }
 
+/// <summary>Formulario modal para seleccionar un producto y una cantidad de stock.</summary>
 internal sealed class FrmOperacionStock : Form
 {
     private readonly ComboBox cmbProducto = new ComboBox();
@@ -493,16 +498,16 @@ internal sealed class FrmOperacionStock : Form
             cmbProducto.SelectedIndex = 0;
 
         cmbProducto.Enabled = !productoFijado;
-        var cancelar = Tema.Boton("Cancelar", false);
-        cancelar.SetBounds(250, 130, 95, 40);
-        cancelar.DialogResult = DialogResult.Cancel;
-        Controls.Add(cancelar);
-        var aceptar = Tema.Boton("Aceptar");
-        aceptar.SetBounds(355, 130, 95, 40);
-        aceptar.Click += Aceptar;
-        Controls.Add(aceptar);
-        AcceptButton = aceptar;
-        CancelButton = cancelar;
+        var btnCancelar = Tema.Boton("Cancelar", false);
+        btnCancelar.SetBounds(250, 130, 95, 40);
+        btnCancelar.DialogResult = DialogResult.Cancel;
+        Controls.Add(btnCancelar);
+        var btnAceptar = Tema.Boton("Aceptar");
+        btnAceptar.SetBounds(355, 130, 95, 40);
+        btnAceptar.Click += Aceptar;
+        Controls.Add(btnAceptar);
+        AcceptButton = btnAceptar;
+        CancelButton = btnCancelar;
     }
 
     private void Aceptar(object sender, EventArgs e)
@@ -525,32 +530,33 @@ internal sealed class FrmOperacionStock : Form
     }
 }
 
+/// <summary>Constructores visuales compartidos por las vistas reales.</summary>
 internal static class VistaRealUtil
 {
     public static Button Boton(string texto, bool primario, EventHandler accion)
     {
-        var boton = Tema.Boton(texto, primario);
-        boton.AutoSize = true;
-        boton.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        boton.Padding = new Padding(10, 0, 10, 0);
-        boton.Margin = new Padding(0, 0, 8, 0);
-        boton.Click += accion;
-        return boton;
+        var btnAccion = Tema.Boton(texto, primario);
+        btnAccion.AutoSize = true;
+        btnAccion.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        btnAccion.Padding = new Padding(10, 0, 10, 0);
+        btnAccion.Margin = new Padding(0, 0, 8, 0);
+        btnAccion.Click += accion;
+        return btnAccion;
     }
 
     public static Label Tarjeta(FlowLayoutPanel fila, string titulo)
     {
-        var tarjeta = Tema.NuevaTarjeta();
-        tarjeta.Size = new Size(250, 84);
-        tarjeta.Margin = new Padding(0, 0, 12, 12);
-        var etiqueta = Tema.Etiqueta(titulo, 9.5f, false, Tema.Gris);
-        etiqueta.Location = new Point(14, 12);
-        var valor = Tema.Etiqueta("0", 18, true, Tema.Verde);
-        valor.Location = new Point(14, 36);
-        tarjeta.Controls.Add(etiqueta);
-        tarjeta.Controls.Add(valor);
-        fila.Controls.Add(tarjeta);
-        return valor;
+        var pnlTarjeta = Tema.NuevaTarjeta();
+        pnlTarjeta.Size = new Size(250, 84);
+        pnlTarjeta.Margin = new Padding(0, 0, 12, 12);
+        var lblEtiqueta = Tema.Etiqueta(titulo, 9.5f, false, Tema.Gris);
+        lblEtiqueta.Location = new Point(14, 12);
+        var lblValor = Tema.Etiqueta("0", 18, true, Tema.Verde);
+        lblValor.Location = new Point(14, 36);
+        pnlTarjeta.Controls.Add(lblEtiqueta);
+        pnlTarjeta.Controls.Add(lblValor);
+        fila.Controls.Add(pnlTarjeta);
+        return lblValor;
     }
 
     public static decimal Total(Resultado<List<IngresoReporte>> resultado)
@@ -561,6 +567,7 @@ internal static class VistaRealUtil
     }
 }
 
+/// <summary>Resumen real de ventas recientes y stock bajo.</summary>
 internal sealed class UcInicioReal : UserControl
 {
     private readonly ReporteNegocio reportes = new ReporteNegocio();
@@ -570,23 +577,23 @@ internal sealed class UcInicioReal : UserControl
     public UcInicioReal()
     {
         BackColor = Tema.Fondo;
-        var grilla = Tema.NuevaGrilla();
-        grilla.Dock = DockStyle.Fill;
+        var dgvUltimas = Tema.NuevaGrilla();
+        dgvUltimas.Dock = DockStyle.Fill;
         foreach (var columna in new[] { "Fecha", "Comprobante", "Producto", "Cant.", "Total", "Medio de pago" })
-            grilla.Columns.Add(columna, columna);
-        Controls.Add(grilla);
+            dgvUltimas.Columns.Add(columna, columna);
+        Controls.Add(dgvUltimas);
 
-        var tarjetas = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 104, BackColor = Color.Transparent };
+        var pnlTarjetas = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 104, BackColor = Color.Transparent };
         var hoy = DateTime.Today;
         var semana = hoy.AddDays(-((int)hoy.DayOfWeek + 6) % 7);
         var mes = new DateTime(hoy.Year, hoy.Month, 1);
-        VistaRealUtil.Tarjeta(tarjetas, "Ventas de hoy").Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorDia(hoy, hoy)));
-        VistaRealUtil.Tarjeta(tarjetas, "Ventas de la semana").Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorSemana(semana, hoy)));
-        VistaRealUtil.Tarjeta(tarjetas, "Ventas del mes").Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorMes(mes, hoy)));
+        VistaRealUtil.Tarjeta(pnlTarjetas, "Ventas de hoy").Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorDia(hoy, hoy)));
+        VistaRealUtil.Tarjeta(pnlTarjetas, "Ventas de la semana").Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorSemana(semana, hoy)));
+        VistaRealUtil.Tarjeta(pnlTarjetas, "Ventas del mes").Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorMes(mes, hoy)));
         var bajo = stock.ListarStockBajo(5);
-        VistaRealUtil.Tarjeta(tarjetas, "Productos con stock bajo").Text =
+        VistaRealUtil.Tarjeta(pnlTarjetas, "Productos con stock bajo").Text =
             bajo.Exito ? bajo.Valor.Count.ToString() : "0";
-        Controls.Add(tarjetas);
+        Controls.Add(pnlTarjetas);
 
         var ultimas = ventas.UltimasVentas();
         if (!ultimas.Exito)
@@ -595,16 +602,17 @@ internal sealed class UcInicioReal : UserControl
             return;
         }
         foreach (var venta in ultimas.Valor)
-            grilla.Rows.Add(venta.Fecha.ToString("dd/MM - HH:mm"), venta.idVenta.ToString("000000"),
+            dgvUltimas.Rows.Add(venta.Fecha.ToString("dd/MM - HH:mm"), venta.idVenta.ToString("000000"),
                 venta.Producto, venta.Cantidad, Tema.Dinero(venta.Total), venta.MedioPago);
     }
 }
 
+/// <summary>Reportes de ingresos y productos más vendidos.</summary>
 internal sealed class UcReportesReal : UserControl
 {
     private readonly ReporteNegocio negocio = new ReporteNegocio();
-    private readonly DataGridView grillaIngresos = Tema.NuevaGrilla();
-    private readonly DataGridView grillaProductos = Tema.NuevaGrilla();
+    private readonly DataGridView dgvIngresos = Tema.NuevaGrilla();
+    private readonly DataGridView dgvProductosVendidos = Tema.NuevaGrilla();
     private readonly Label lblTotal;
     private readonly Label lblRegistros;
     private readonly Label lblProductos;
@@ -614,30 +622,30 @@ internal sealed class UcReportesReal : UserControl
     public UcReportesReal()
     {
         BackColor = Tema.Fondo;
-        grillaIngresos.Dock = DockStyle.Fill;
-        grillaIngresos.Columns.Add("Periodo", "Periodo");
-        grillaIngresos.Columns.Add("Total", "Total");
-        Controls.Add(grillaIngresos);
+        dgvIngresos.Dock = DockStyle.Fill;
+        dgvIngresos.Columns.Add("Periodo", "Periodo");
+        dgvIngresos.Columns.Add("Total", "Total");
+        Controls.Add(dgvIngresos);
 
-        grillaProductos.Dock = DockStyle.Bottom;
-        grillaProductos.Height = 180;
-        grillaProductos.Columns.Add("Producto", "Producto");
-        grillaProductos.Columns.Add("Cantidad", "Cantidad vendida");
-        grillaProductos.Columns.Add("Total", "Ingresos");
-        Controls.Add(grillaProductos);
+        dgvProductosVendidos.Dock = DockStyle.Bottom;
+        dgvProductosVendidos.Height = 180;
+        dgvProductosVendidos.Columns.Add("Producto", "Producto");
+        dgvProductosVendidos.Columns.Add("Cantidad", "Cantidad vendida");
+        dgvProductosVendidos.Columns.Add("Total", "Ingresos");
+        Controls.Add(dgvProductosVendidos);
 
-        var tarjetas = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 104, BackColor = Color.Transparent };
-        lblTotal = VistaRealUtil.Tarjeta(tarjetas, "Total del período");
-        lblRegistros = VistaRealUtil.Tarjeta(tarjetas, "Períodos");
-        lblProductos = VistaRealUtil.Tarjeta(tarjetas, "Productos vendidos");
-        Controls.Add(tarjetas);
+        var pnlTarjetas = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 104, BackColor = Color.Transparent };
+        lblTotal = VistaRealUtil.Tarjeta(pnlTarjetas, "Total del período");
+        lblRegistros = VistaRealUtil.Tarjeta(pnlTarjetas, "Períodos");
+        lblProductos = VistaRealUtil.Tarjeta(pnlTarjetas, "Productos vendidos");
+        Controls.Add(pnlTarjetas);
 
-        var barra = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.Transparent };
-        barra.Controls.Add(VistaRealUtil.Boton("Diario", true, (s, e) => Cargar("Diario")));
-        barra.Controls.Add(VistaRealUtil.Boton("Semanal", false, (s, e) => Cargar("Semanal")));
-        barra.Controls.Add(VistaRealUtil.Boton("Mensual", false, (s, e) => Cargar("Mensual")));
-        barra.Controls.Add(VistaRealUtil.Boton("Exportar", false, Exportar));
-        Controls.Add(barra);
+        var pnlBarra = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.Transparent };
+        pnlBarra.Controls.Add(VistaRealUtil.Boton("Diario", true, (s, e) => Cargar("Diario")));
+        pnlBarra.Controls.Add(VistaRealUtil.Boton("Semanal", false, (s, e) => Cargar("Semanal")));
+        pnlBarra.Controls.Add(VistaRealUtil.Boton("Mensual", false, (s, e) => Cargar("Mensual")));
+        pnlBarra.Controls.Add(VistaRealUtil.Boton("Exportar", false, Exportar));
+        Controls.Add(pnlBarra);
         Cargar(periodoActual);
     }
 
@@ -660,15 +668,15 @@ internal sealed class UcReportesReal : UserControl
             return;
         }
         ingresosActuales = resultado.Valor;
-        grillaIngresos.Rows.Clear();
+        dgvIngresos.Rows.Clear();
         foreach (var ingreso in ingresosActuales)
-            grillaIngresos.Rows.Add(ingreso.Periodo.ToString(periodo == "Diario" ? "dd/MM/yyyy" : "MM/yyyy"), Tema.Dinero(ingreso.Total));
+            dgvIngresos.Rows.Add(ingreso.Periodo.ToString(periodo == "Diario" ? "dd/MM/yyyy" : "MM/yyyy"), Tema.Dinero(ingreso.Total));
 
         var productos = negocio.ProductosMasVendidos();
-        grillaProductos.Rows.Clear();
+        dgvProductosVendidos.Rows.Clear();
         if (productos.Exito)
             foreach (var producto in productos.Valor.Take(10))
-                grillaProductos.Rows.Add(producto.Nombre, producto.Cantidad, Tema.Dinero(producto.Total));
+                dgvProductosVendidos.Rows.Add(producto.Nombre, producto.Cantidad, Tema.Dinero(producto.Total));
 
         lblTotal.Text = Tema.Dinero(ingresosActuales.Sum(x => x.Total));
         lblRegistros.Text = ingresosActuales.Count.ToString();
@@ -688,23 +696,24 @@ internal sealed class UcReportesReal : UserControl
     }
 }
 
+/// <summary>Administración de usuarios activos y sus roles.</summary>
 internal sealed class UcUsuariosReal : UserControl
 {
     private readonly UsuarioNegocio negocio = new UsuarioNegocio();
-    private readonly DataGridView grilla = Tema.NuevaGrilla();
+    private readonly DataGridView dgvUsuarios = Tema.NuevaGrilla();
 
     public UcUsuariosReal()
     {
         BackColor = Tema.Fondo;
-        grilla.Dock = DockStyle.Fill;
+        dgvUsuarios.Dock = DockStyle.Fill;
         foreach (var columna in new[] { "Id", "Nombre", "Usuario", "Rol", "Estado" })
-            grilla.Columns.Add(columna, columna);
-        Controls.Add(grilla);
-        var barra = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.Transparent };
-        barra.Controls.Add(VistaRealUtil.Boton("Nuevo usuario", true, Nuevo));
-        barra.Controls.Add(VistaRealUtil.Boton("Editar", false, Editar));
-        barra.Controls.Add(VistaRealUtil.Boton("Desactivar", false, Desactivar));
-        Controls.Add(barra);
+            dgvUsuarios.Columns.Add(columna, columna);
+        Controls.Add(dgvUsuarios);
+        var pnlAcciones = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.Transparent };
+        pnlAcciones.Controls.Add(VistaRealUtil.Boton("Nuevo usuario", true, Nuevo));
+        pnlAcciones.Controls.Add(VistaRealUtil.Boton("Editar", false, Editar));
+        pnlAcciones.Controls.Add(VistaRealUtil.Boton("Desactivar", false, Desactivar));
+        Controls.Add(pnlAcciones);
         Cargar();
     }
 
@@ -716,17 +725,17 @@ internal sealed class UcUsuariosReal : UserControl
             MessageBox.Show(resultado.Mensaje, "Usuarios", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        grilla.Rows.Clear();
+        dgvUsuarios.Rows.Clear();
         foreach (var usuario in resultado.Valor.OrderBy(x => x.Nombre))
         {
-            var fila = grilla.Rows[grilla.Rows.Add(usuario.idUsuario, usuario.Nombre, usuario.NombreUsuario, usuario.Rol, "Activo")];
+            var fila = dgvUsuarios.Rows[dgvUsuarios.Rows.Add(usuario.idUsuario, usuario.Nombre, usuario.NombreUsuario, usuario.Rol, "Activo")];
             fila.Tag = usuario;
         }
     }
 
     private Usuario Seleccionado()
     {
-        return grilla.CurrentRow == null ? null : grilla.CurrentRow.Tag as Usuario;
+        return dgvUsuarios.CurrentRow == null ? null : dgvUsuarios.CurrentRow.Tag as Usuario;
     }
 
     private void Nuevo(object sender, EventArgs e)
@@ -783,6 +792,7 @@ internal sealed class UcUsuariosReal : UserControl
     }
 }
 
+/// <summary>Formulario modal para alta y edición de usuarios.</summary>
 internal sealed class FrmUsuarioModal : Form
 {
     private readonly TextBox txtNombre = Tema.Caja("Nombre");
@@ -826,16 +836,16 @@ internal sealed class FrmUsuarioModal : Form
         }
         else cmbRol.SelectedIndex = 1;
 
-        var cancelar = Tema.Boton("Cancelar", false);
-        cancelar.SetBounds(220, 220, 95, 40);
-        cancelar.DialogResult = DialogResult.Cancel;
-        Controls.Add(cancelar);
-        var aceptar = Tema.Boton("Guardar");
-        aceptar.SetBounds(325, 220, 95, 40);
-        aceptar.Click += Aceptar;
-        Controls.Add(aceptar);
-        AcceptButton = aceptar;
-        CancelButton = cancelar;
+        var btnCancelar = Tema.Boton("Cancelar", false);
+        btnCancelar.SetBounds(220, 220, 95, 40);
+        btnCancelar.DialogResult = DialogResult.Cancel;
+        Controls.Add(btnCancelar);
+        var btnAceptar = Tema.Boton("Guardar");
+        btnAceptar.SetBounds(325, 220, 95, 40);
+        btnAceptar.Click += Aceptar;
+        Controls.Add(btnAceptar);
+        AcceptButton = btnAceptar;
+        CancelButton = btnCancelar;
     }
 
     private void AgregarCampo(string texto, TextBox caja, int y)
@@ -865,6 +875,7 @@ internal sealed class FrmUsuarioModal : Form
     }
 }
 
+/// <summary>Operaciones de copia y restauración de los XML desde Negocio.</summary>
 internal sealed class UcConfiguracionReal : UserControl
 {
     private readonly CopiaSeguridadNegocio negocio = new CopiaSeguridadNegocio();
@@ -872,23 +883,23 @@ internal sealed class UcConfiguracionReal : UserControl
     public UcConfiguracionReal()
     {
         BackColor = Tema.Fondo;
-        var tarjeta = Tema.NuevaTarjeta();
-        tarjeta.SetBounds(0, 0, 620, 220);
-        var titulo = Tema.Etiqueta("Copia de seguridad", 12, true);
-        titulo.Location = new Point(20, 16);
-        var detalle = Tema.Etiqueta("Copia y restaura los archivos XML del sistema.", 9, false, Tema.Gris);
-        detalle.Location = new Point(20, 46);
-        var crear = Tema.Boton("Crear copia ahora");
-        crear.SetBounds(20, 90, 250, 42);
-        crear.Click += CrearCopia;
-        var restaurar = Tema.Boton("Restaurar copia", false);
-        restaurar.SetBounds(285, 90, 250, 42);
-        restaurar.Click += RestaurarCopia;
-        tarjeta.Controls.Add(titulo);
-        tarjeta.Controls.Add(detalle);
-        tarjeta.Controls.Add(crear);
-        tarjeta.Controls.Add(restaurar);
-        Controls.Add(tarjeta);
+        var pnlTarjeta = Tema.NuevaTarjeta();
+        pnlTarjeta.SetBounds(0, 0, 620, 220);
+        var lblTitulo = Tema.Etiqueta("Copia de seguridad", 12, true);
+        lblTitulo.Location = new Point(20, 16);
+        var lblDetalle = Tema.Etiqueta("Copia y restaura los archivos XML del sistema.", 9, false, Tema.Gris);
+        lblDetalle.Location = new Point(20, 46);
+        var btnCrearCopia = Tema.Boton("Crear copia ahora");
+        btnCrearCopia.SetBounds(20, 90, 250, 42);
+        btnCrearCopia.Click += CrearCopia;
+        var btnRestaurarCopia = Tema.Boton("Restaurar copia", false);
+        btnRestaurarCopia.SetBounds(285, 90, 250, 42);
+        btnRestaurarCopia.Click += RestaurarCopia;
+        pnlTarjeta.Controls.Add(lblTitulo);
+        pnlTarjeta.Controls.Add(lblDetalle);
+        pnlTarjeta.Controls.Add(btnCrearCopia);
+        pnlTarjeta.Controls.Add(btnRestaurarCopia);
+        Controls.Add(pnlTarjeta);
     }
 
     private void CrearCopia(object sender, EventArgs e)
@@ -921,20 +932,20 @@ public partial class FrmPrincipal
         // ---------------------------------------------------------- menú lateral
         private Panel ConstruirMenu()
         {
-            var menu = new Panel { Dock = DockStyle.Left, Width = 210, BackColor = Tema.Panel };
+            var pnlMenu = new Panel { Dock = DockStyle.Left, Width = 210, BackColor = Tema.Panel };
 
-            var logo = Tema.Etiqueta("CAMINOS", 18, true, Tema.Verde);
-            logo.Location = new Point(16, 16);
-            var sub = Tema.Etiqueta("ROPA DEPORTIVA", 8, false, Tema.Gris);
-            sub.Location = new Point(18, 50);
-            menu.Controls.Add(logo);
-            menu.Controls.Add(sub);
+            var lblLogo = Tema.Etiqueta("CAMINOS", 18, true, Tema.Verde);
+            lblLogo.Location = new Point(16, 16);
+            var lblSubtituloMenu = Tema.Etiqueta("ROPA DEPORTIVA", 8, false, Tema.Gris);
+            lblSubtituloMenu.Location = new Point(18, 50);
+            pnlMenu.Controls.Add(lblLogo);
+            pnlMenu.Controls.Add(lblSubtituloMenu);
 
             int y = 90;
             foreach (var nombre in Secciones)
             {
                 if (!Permitido(nombre)) continue;
-                var b = new Button
+                var btnSeccion = new Button
                 {
                     Text = "   " + nombre,
                     Tag = nombre,
@@ -944,20 +955,20 @@ public partial class FrmPrincipal
                     Cursor = Cursors.Hand,
                     Bounds = new Rectangle(10, y, 190, 42)
                 };
-                b.FlatAppearance.BorderSize = 0;
-                b.Click += (s, e) => Navegar((string)((Button)s).Tag);
-                botones.Add(b);
-                menu.Controls.Add(b);
+                btnSeccion.FlatAppearance.BorderSize = 0;
+                btnSeccion.Click += (s, e) => Navegar((string)((Button)s).Tag);
+                botones.Add(btnSeccion);
+                pnlMenu.Controls.Add(btnSeccion);
                 y += 48;
             }
 
-            var lema = Tema.Etiqueta("Más deporte, mejor vida", 8.5f, false, Tema.Verde);
-            lema.Dock = DockStyle.Bottom;
-            lema.AutoSize = false;
-            lema.Height = 36;
-            lema.TextAlign = ContentAlignment.MiddleCenter;
+            var lblLema = Tema.Etiqueta("Más deporte, mejor vida", 8.5f, false, Tema.Verde);
+            lblLema.Dock = DockStyle.Bottom;
+            lblLema.AutoSize = false;
+            lblLema.Height = 36;
+            lblLema.TextAlign = ContentAlignment.MiddleCenter;
 
-            var salir = new Button
+            var btnCerrarSesion = new Button
             {
                 Text = "   Cerrar sesión",
                 FlatStyle = FlatStyle.Flat,
@@ -969,12 +980,12 @@ public partial class FrmPrincipal
                 Dock = DockStyle.Bottom,
                 Height = 46
             };
-            salir.FlatAppearance.BorderSize = 0;
-            salir.Click += (s, e) => CerrarSesion();
+            btnCerrarSesion.FlatAppearance.BorderSize = 0;
+            btnCerrarSesion.Click += (s, e) => CerrarSesion();
 
-            menu.Controls.Add(lema);
-            menu.Controls.Add(salir);
-            return menu;
+            pnlMenu.Controls.Add(lblLema);
+            pnlMenu.Controls.Add(btnCerrarSesion);
+            return pnlMenu;
         }
 
         private void CerrarSesion()
@@ -995,7 +1006,7 @@ public partial class FrmPrincipal
         // ---------------------------------------------------------- encabezado
         private Panel ConstruirEncabezado()
         {
-            var cab = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = Tema.Panel };
+            var pnlEncabezado = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = Tema.Panel };
 
             lblTitulo = Tema.Etiqueta("", 16, true);
             lblTitulo.Location = new Point(20, 8);
@@ -1025,11 +1036,11 @@ public partial class FrmPrincipal
             timer.Tick += (s, e) => ActualizarFecha();
             timer.Start();
 
-            cab.Controls.Add(lblTitulo);
-            cab.Controls.Add(lblSubtitulo);
-            cab.Controls.Add(lblUsuario);
-            cab.Controls.Add(lblFecha);
-            return cab;
+            pnlEncabezado.Controls.Add(lblTitulo);
+            pnlEncabezado.Controls.Add(lblSubtitulo);
+            pnlEncabezado.Controls.Add(lblUsuario);
+            pnlEncabezado.Controls.Add(lblFecha);
+            return pnlEncabezado;
         }
 
         private void ActualizarFecha()

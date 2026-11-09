@@ -8,6 +8,7 @@ using SistemaCaminosalDeporte.Entidades;
 
 namespace SistemaCaminosalDeporte.Negocio
 {
+    /// <summary>Genera consultas de ingresos y productos vendidos a partir de las ventas XML.</summary>
     public class ReporteNegocio
     {
         private readonly VentaDatos ventas;
@@ -47,6 +48,7 @@ namespace SistemaCaminosalDeporte.Negocio
             this.productos = productos ?? throw new ArgumentNullException(nameof(productos));
         }
 
+        /// <summary>Agrupa los ingresos por día en el período indicado.</summary>
         public Resultado<List<IngresoReporte>> IngresosPorDia(DateTime desde, DateTime hasta)
         {
             return AgruparIngresos(desde, hasta, venta => venta.Fecha.Date, "día");
@@ -62,6 +64,7 @@ namespace SistemaCaminosalDeporte.Negocio
             return AgruparIngresos(desde, hasta, venta => new DateTime(venta.Fecha.Year, venta.Fecha.Month, 1), "mes");
         }
 
+        /// <summary>Devuelve los productos ordenados por cantidad vendida.</summary>
         public Resultado<List<ProductoVendidoReporte>> ProductosMasVendidos()
         {
             try

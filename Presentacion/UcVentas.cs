@@ -8,7 +8,7 @@ using SistemaCaminosalDeporte.Negocio;
 
 namespace SistemaCaminosalDeporte.Presentacion
 {
-    /// <summary>Pantalla "Registrar una venta" (caso de uso principal del TP).</summary>
+    /// <summary>Pantalla de registro de ventas usando productos, stock y sesión reales.</summary>
     public class UcVentas : UserControl
     {
         private static readonly string[] Categorias =
@@ -20,8 +20,8 @@ namespace SistemaCaminosalDeporte.Presentacion
         private DataGridView dgvUltimas;
         private Label lblSubtotal, lblDescMonto, lblTotal;
         private ComboBox cmbDescuento;
-        private readonly List<Button> chips = new List<Button>();
-        private readonly List<Button> botonesPago = new List<Button>();
+        private readonly List<Button> btnCategorias = new List<Button>();
+        private readonly List<Button> btnMediosPago = new List<Button>();
         private readonly ProductoNegocio productoNegocio = new ProductoNegocio();
         private readonly VentaNegocio ventaNegocio = new VentaNegocio();
         private string categoria = "Todos";
@@ -91,18 +91,18 @@ namespace SistemaCaminosalDeporte.Presentacion
             };
             foreach (var cat in Categorias)
             {
-                var chip = Tema.Boton(cat, cat == "Todos");
-                chip.Size = new Size(98, 32);
-                chip.Margin = new Padding(0, 0, 8, 0);
-                chip.Tag = cat;
-                chip.Click += (s, e) =>
+                var btnChip = Tema.Boton(cat, cat == "Todos");
+                btnChip.Size = new Size(98, 32);
+                btnChip.Margin = new Padding(0, 0, 8, 0);
+                btnChip.Tag = cat;
+                btnChip.Click += (s, e) =>
                 {
                     categoria = (string)((Button)s).Tag;
-                    foreach (var c in chips) Tema.Marcar(c, (string)c.Tag == categoria);
+                    foreach (var btnCategoria in btnCategorias) Tema.Marcar(btnCategoria, (string)btnCategoria.Tag == categoria);
                     CargarProductos();
                 };
-                chips.Add(chip);
-                flpChips.Controls.Add(chip);
+                btnCategorias.Add(btnChip);
+                flpChips.Controls.Add(btnChip);
             }
             pnlBus.Controls.Add(flpChips);
             p.Controls.Add(pnlBus);
@@ -135,7 +135,7 @@ namespace SistemaCaminosalDeporte.Presentacion
             card.Tag = prod.idProducto;
 
             // Espacio para la foto del producto (reemplazar por un PictureBox con imagen real)
-            var foto = new Label
+            var lblFoto = new Label
             {
                 Text = prod.Tipo.ToUpper(),
                 Bounds = new Rectangle(8, 8, 152, 80),
@@ -144,23 +144,23 @@ namespace SistemaCaminosalDeporte.Presentacion
                 Font = Tema.Fuente(9, true),
                 TextAlign = ContentAlignment.MiddleCenter
             };
-            var nombre = Tema.Etiqueta(prod.Nombre, 9.5f, true);
-            nombre.Location = new Point(8, 94);
-            var talles = Tema.Etiqueta("Talle: " + prod.Talle + "  Stock: " + prod.Stock, 8, false, Tema.Gris);
-            talles.Location = new Point(8, 118);
+            var lblNombre = Tema.Etiqueta(prod.Nombre, 9.5f, true);
+            lblNombre.Location = new Point(8, 94);
+            var lblTalles = Tema.Etiqueta("Talle: " + prod.Talle + "  Stock: " + prod.Stock, 8, false, Tema.Gris);
+            lblTalles.Location = new Point(8, 118);
             var lblPrecio = Tema.Etiqueta(Tema.Dinero(prod.Precio), 12, true, Tema.Verde);
             lblPrecio.Location = new Point(8, 160);
 
-            var btn = Tema.Boton("+");
-            btn.SetBounds(126, 156, 34, 30);
-            btn.Enabled = prod.Stock > 0;
-            btn.Click += (s, e) => Agregar(prod);
+            var btnAgregar = Tema.Boton("+");
+            btnAgregar.SetBounds(126, 156, 34, 30);
+            btnAgregar.Enabled = prod.Stock > 0;
+            btnAgregar.Click += (s, e) => Agregar(prod);
 
-            card.Controls.Add(foto);
-            card.Controls.Add(nombre);
-            card.Controls.Add(talles);
+            card.Controls.Add(lblFoto);
+            card.Controls.Add(lblNombre);
+            card.Controls.Add(lblTalles);
             card.Controls.Add(lblPrecio);
-            card.Controls.Add(btn);
+            card.Controls.Add(btnAgregar);
             return card;
         }
 
@@ -240,14 +240,14 @@ namespace SistemaCaminosalDeporte.Presentacion
             string[] medios = { "Efectivo", "Tarjeta", "QR", "Go Cuotas" };
             for (int i = 0; i < medios.Length; i++)
             {
-                var b = Tema.Boton(medios[i], false);
-                b.Font = Tema.Fuente(9, true);
-                b.SetBounds(i * 94, 156, 86, 52);
-                b.Tag = medios[i];
+                var btnMedioPago = Tema.Boton(medios[i], false);
+                btnMedioPago.Font = Tema.Fuente(9, true);
+                btnMedioPago.SetBounds(i * 94, 156, 86, 52);
+                btnMedioPago.Tag = medios[i];
                 int idx = i;
-                b.Click += (s, e) => MarcarPago(idx);
-                botonesPago.Add(b);
-                pie.Controls.Add(b);
+                btnMedioPago.Click += (s, e) => MarcarPago(idx);
+                btnMediosPago.Add(btnMedioPago);
+                pie.Controls.Add(btnMedioPago);
             }
 
             var btnFinalizar = Tema.Boton("Finalizar venta");
@@ -258,10 +258,10 @@ namespace SistemaCaminosalDeporte.Presentacion
             pnl.Controls.Add(pie);
 
             // Encabezado
-            var cab = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Color.Transparent };
-            var titulo = Tema.Etiqueta("Productos en la venta", 12, true);
-            titulo.Location = new Point(0, 6);
-            cab.Controls.Add(titulo);
+            var pnlCabecera = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Color.Transparent };
+            var lblTitulo = Tema.Etiqueta("Productos en la venta", 12, true);
+            lblTitulo.Location = new Point(0, 6);
+            pnlCabecera.Controls.Add(lblTitulo);
             var btnQuitar = Tema.Boton("-1", false);
             btnQuitar.Dock = DockStyle.Right;
             btnQuitar.Width = 80;
@@ -283,8 +283,8 @@ namespace SistemaCaminosalDeporte.Presentacion
                 }
                 Recalcular();
             };
-            cab.Controls.Add(btnQuitar);
-            pnl.Controls.Add(cab);
+            pnlCabecera.Controls.Add(btnQuitar);
+            pnl.Controls.Add(pnlCabecera);
 
             return pnl;
         }
@@ -398,8 +398,8 @@ namespace SistemaCaminosalDeporte.Presentacion
 
         private void MarcarPago(int indice)
         {
-            for (int i = 0; i < botonesPago.Count; i++) Tema.Marcar(botonesPago[i], i == indice);
-            medioPago = (string)botonesPago[indice].Tag;
+            for (int i = 0; i < btnMediosPago.Count; i++) Tema.Marcar(btnMediosPago[i], i == indice);
+            medioPago = (string)btnMediosPago[indice].Tag;
         }
 
         private void FinalizarVenta(object sender, EventArgs e)

@@ -5,6 +5,7 @@ using SistemaCaminosalDeporte.Negocio;
 
 namespace SistemaCaminosalDeporte.Presentacion
 {
+    /// <summary>Formulario de autenticación de usuarios activos.</summary>
     public class FrmLogin : Form
     {
         private TextBox txtUsuario;
@@ -50,6 +51,7 @@ namespace SistemaCaminosalDeporte.Presentacion
             AcceptButton = btnIngresar;
         }
 
+        /// <summary>Valida los campos y delega el inicio de sesión a UsuarioNegocio.</summary>
         private void Ingresar(object sender, EventArgs e)
         {
             if (txtUsuario.Text.Trim().Length == 0 || txtClave.Text.Length == 0)
@@ -72,9 +74,9 @@ namespace SistemaCaminosalDeporte.Presentacion
 
         private Label Etq(string texto, int x, int y)
         {
-            var l = Tema.Etiqueta(texto, 9, false, Tema.Gris);
-            l.Location = new Point(x, y);
-            return l;
+            var lblEtiqueta = Tema.Etiqueta(texto, 9, false, Tema.Gris);
+            lblEtiqueta.Location = new Point(x, y);
+            return lblEtiqueta;
         }
 
         private Label Centrado(string texto, float tam, bool negrita, Color color, int y, int alto)

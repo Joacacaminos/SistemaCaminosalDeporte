@@ -4,6 +4,7 @@ using SistemaCaminosalDeporte.Entidades;
 
 namespace SistemaCaminosalDeporte.Datos
 {
+    /// <summary>Repositorio XML de productos, incluyendo el catálogo inicial.</summary>
     public class ProductoDatos : RepositorioXml<Producto>
     {
         public ProductoDatos()

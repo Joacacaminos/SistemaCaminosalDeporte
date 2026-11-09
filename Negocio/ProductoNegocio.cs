@@ -6,6 +6,7 @@ using SistemaCaminosalDeporte.Entidades;
 
 namespace SistemaCaminosalDeporte.Negocio
 {
+    /// <summary>Reglas de alta, consulta, modificación y baja lógica de productos.</summary>
     public class ProductoNegocio
     {
         private readonly ProductoDatos datos;
@@ -20,6 +21,7 @@ namespace SistemaCaminosalDeporte.Negocio
             this.datos = datos ?? throw new ArgumentNullException(nameof(datos));
         }
 
+        /// <summary>Lista productos activos salvo que se soliciten también los inactivos.</summary>
         public Resultado<List<Producto>> Listar(bool incluirInactivos = false)
         {
             try
@@ -55,6 +57,7 @@ namespace SistemaCaminosalDeporte.Negocio
             }
         }
 
+        /// <summary>Valida y registra un producto nuevo.</summary>
         public Resultado<Producto> Alta(Producto producto)
         {
             var validacion = Validar(producto);
@@ -73,6 +76,7 @@ namespace SistemaCaminosalDeporte.Negocio
             }
         }
 
+        /// <summary>Actualiza los datos de un producto existente.</summary>
         public Resultado<Producto> Modificar(Producto producto)
         {
             var validacion = Validar(producto);
@@ -100,6 +104,7 @@ namespace SistemaCaminosalDeporte.Negocio
             }
         }
 
+        /// <summary>Desactiva un producto sin eliminarlo del XML.</summary>
         public Resultado BajaLogica(int idProducto)
         {
             try

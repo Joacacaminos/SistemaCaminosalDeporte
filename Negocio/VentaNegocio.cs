@@ -6,6 +6,7 @@ using SistemaCaminosalDeporte.Entidades;
 
 namespace SistemaCaminosalDeporte.Negocio
 {
+    /// <summary>Valida y registra ventas, detalles y movimientos de salida.</summary>
     public class VentaNegocio
     {
         private readonly ProductoDatos productos;
@@ -38,6 +39,7 @@ namespace SistemaCaminosalDeporte.Negocio
             this.usuarios = usuarios ?? throw new ArgumentNullException(nameof(usuarios));
         }
 
+        /// <summary>Registra una venta únicamente si usuario, productos y stock son válidos.</summary>
         public Resultado<Venta> Registrar(
             IEnumerable<LineaVenta> lineas,
             string medioPago,

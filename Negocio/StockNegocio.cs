@@ -6,6 +6,7 @@ using SistemaCaminosalDeporte.Entidades;
 
 namespace SistemaCaminosalDeporte.Negocio
 {
+    /// <summary>Reglas de movimientos de entrada, salida y ajustes de stock.</summary>
     public class StockNegocio
     {
         private readonly ProductoDatos productos;
@@ -24,6 +25,7 @@ namespace SistemaCaminosalDeporte.Negocio
             this.usuarios = usuarios ?? throw new ArgumentNullException(nameof(usuarios));
         }
 
+        /// <summary>Registra una entrada y aumenta el stock del producto.</summary>
         public Resultado<Producto> IngresarMercaderia(int idProducto, int cantidad, int idUsuario)
         {
             if (cantidad <= 0)
@@ -68,6 +70,7 @@ namespace SistemaCaminosalDeporte.Negocio
             }
         }
 
+        /// <summary>Ajusta el stock y registra la diferencia como movimiento.</summary>
         public Resultado<Producto> AjustarCantidad(int idProducto, int nuevaCantidad, int idUsuario)
         {
             if (nuevaCantidad < 0)

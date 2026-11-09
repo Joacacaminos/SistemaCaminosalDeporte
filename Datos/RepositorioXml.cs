@@ -6,6 +6,7 @@ using System.Xml.Serialization;
 
 namespace SistemaCaminosalDeporte.Datos
 {
+    /// <summary>Repositorio genérico que persiste entidades en archivos XML dentro de Datos.</summary>
     public class RepositorioXml<T> where T : class, new()
     {
         private readonly string rutaArchivo;
@@ -48,6 +49,7 @@ namespace SistemaCaminosalDeporte.Datos
             NormalizarIds();
         }
 
+        /// <summary>Asigna identificadores válidos a datos iniciales o archivos antiguos.</summary>
         private void NormalizarIds()
         {
             lock (sincronizacion)
@@ -74,6 +76,7 @@ namespace SistemaCaminosalDeporte.Datos
             }
         }
 
+        /// <summary>Devuelve una copia de todos los registros almacenados.</summary>
         public List<T> ObtenerTodos()
         {
             lock (sincronizacion)

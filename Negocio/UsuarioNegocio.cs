@@ -7,6 +7,7 @@ using SistemaCaminosalDeporte.Entidades;
 
 namespace SistemaCaminosalDeporte.Negocio
 {
+    /// <summary>Administra autenticación, usuarios, roles y contraseñas hash.</summary>
     public class UsuarioNegocio
     {
         private readonly UsuarioDatos datos;
@@ -36,6 +37,7 @@ namespace SistemaCaminosalDeporte.Negocio
             }
         }
 
+        /// <summary>Valida credenciales y abre la sesión del usuario activo.</summary>
         public Resultado<Usuario> Login(string usuario, string contraseña)
         {
             if (string.IsNullOrWhiteSpace(usuario) || string.IsNullOrEmpty(contraseña))
@@ -61,6 +63,7 @@ namespace SistemaCaminosalDeporte.Negocio
             }
         }
 
+        /// <summary>Crea un usuario activo almacenando la contraseña como SHA-256.</summary>
         public Resultado<Usuario> Alta(string nombre, string nombreUsuario, string contraseña, string rol)
         {
             if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(nombreUsuario))
@@ -126,6 +129,7 @@ namespace SistemaCaminosalDeporte.Negocio
             }
         }
 
+        /// <summary>Desactiva un usuario salvo que sea el de la sesión actual.</summary>
         public Resultado Desactivar(int idUsuario)
         {
             if (SesionActual.Usuario != null && SesionActual.Usuario.idUsuario == idUsuario)

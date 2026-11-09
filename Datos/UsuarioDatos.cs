@@ -6,6 +6,7 @@ using SistemaCaminosalDeporte.Entidades;
 
 namespace SistemaCaminosalDeporte.Datos
 {
+    /// <summary>Repositorio XML de usuarios y credenciales iniciales.</summary>
     public class UsuarioDatos : RepositorioXml<Usuario>
     {
         public UsuarioDatos()

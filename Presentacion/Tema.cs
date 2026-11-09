@@ -47,7 +47,7 @@ namespace SistemaCaminosalDeporte.Presentacion
 
         public static Button Boton(string texto, bool primario = true)
         {
-            var b = new Button
+            var btnTema = new Button
             {
                 Text = texto,
                 FlatStyle = FlatStyle.Flat,
@@ -55,10 +55,10 @@ namespace SistemaCaminosalDeporte.Presentacion
                 Cursor = Cursors.Hand,
                 Font = Fuente(10, true)
             };
-            b.FlatAppearance.BorderSize = primario ? 0 : 1;
-            b.FlatAppearance.BorderColor = Borde;
-            Marcar(b, primario);
-            return b;
+            btnTema.FlatAppearance.BorderSize = primario ? 0 : 1;
+            btnTema.FlatAppearance.BorderColor = Borde;
+            Marcar(btnTema, primario);
+            return btnTema;
         }
 
         /// <summary>Pinta un botón como seleccionado (verde) o normal.</summary>
@@ -70,7 +70,7 @@ namespace SistemaCaminosalDeporte.Presentacion
 
         public static TextBox Caja(string placeholder)
         {
-            var t = new TextBox
+            var txtTema = new TextBox
             {
                 BackColor = Tarjeta,
                 ForeColor = Texto,
@@ -78,25 +78,25 @@ namespace SistemaCaminosalDeporte.Presentacion
                 Font = Fuente(11)
             };
             // Texto de ayuda (placeholder) en .NET Framework
-            t.HandleCreated += (s, e) => SendMessage(t.Handle, 0x1501, 1, placeholder);
-            return t;
+            txtTema.HandleCreated += (s, e) => SendMessage(txtTema.Handle, 0x1501, 1, placeholder);
+            return txtTema;
         }
 
         public static Panel NuevaTarjeta()
         {
-            var p = new Panel { BackColor = Tarjeta };
-            p.Paint += (s, e) =>
+            var pnlTema = new Panel { BackColor = Tarjeta };
+            pnlTema.Paint += (s, e) =>
             {
                 using (var pen = new Pen(Borde))
-                    e.Graphics.DrawRectangle(pen, 0, 0, p.Width - 1, p.Height - 1);
+                    e.Graphics.DrawRectangle(pen, 0, 0, pnlTema.Width - 1, pnlTema.Height - 1);
             };
-            p.Resize += (s, e) => p.Invalidate();
-            return p;
+            pnlTema.Resize += (s, e) => pnlTema.Invalidate();
+            return pnlTema;
         }
 
         public static DataGridView NuevaGrilla()
         {
-            var g = new DataGridView
+            var dgvTema = new DataGridView
             {
                 EnableHeadersVisualStyles = false,
                 BackgroundColor = Tarjeta,
@@ -116,15 +116,15 @@ namespace SistemaCaminosalDeporte.Presentacion
                 ColumnHeadersHeight = 36,
                 Font = Fuente(9.5f)
             };
-            g.RowTemplate.Height = 34;
-            g.ColumnHeadersDefaultCellStyle.BackColor = Panel;
-            g.ColumnHeadersDefaultCellStyle.ForeColor = Gris;
-            g.ColumnHeadersDefaultCellStyle.SelectionBackColor = Panel;
-            g.DefaultCellStyle.BackColor = Tarjeta;
-            g.DefaultCellStyle.ForeColor = Texto;
-            g.DefaultCellStyle.SelectionBackColor = Color.FromArgb(24, 70, 46);
-            g.DefaultCellStyle.SelectionForeColor = Texto;
-            return g;
+            dgvTema.RowTemplate.Height = 34;
+            dgvTema.ColumnHeadersDefaultCellStyle.BackColor = Panel;
+            dgvTema.ColumnHeadersDefaultCellStyle.ForeColor = Gris;
+            dgvTema.ColumnHeadersDefaultCellStyle.SelectionBackColor = Panel;
+            dgvTema.DefaultCellStyle.BackColor = Tarjeta;
+            dgvTema.DefaultCellStyle.ForeColor = Texto;
+            dgvTema.DefaultCellStyle.SelectionBackColor = Color.FromArgb(24, 70, 46);
+            dgvTema.DefaultCellStyle.SelectionForeColor = Texto;
+            return dgvTema;
         }
     }
 }

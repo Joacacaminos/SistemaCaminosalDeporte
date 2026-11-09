@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace SistemaCaminosalDeporte.Negocio
 {
@@ -25,8 +27,10 @@ namespace SistemaCaminosalDeporte.Negocio
         }
     }
 
+    /// <summary>Crea y restaura copias de los archivos XML de datos.</summary>
     public class CopiaSeguridadNegocio
     {
+        /// <summary>Copia todos los XML a una subcarpeta con fecha y hora.</summary>
         public Resultado<string> CrearCopia(string carpetaDestino)
         {
             if (string.IsNullOrWhiteSpace(carpetaDestino))
@@ -58,6 +62,7 @@ namespace SistemaCaminosalDeporte.Negocio
             }
         }
 
+        /// <summary>Reemplaza los XML actuales por los contenidos de una copia.</summary>
         public Resultado RestaurarCopia(string carpetaCopia)
         {
             if (string.IsNullOrWhiteSpace(carpetaCopia) || !Directory.Exists(carpetaCopia))
@@ -71,6 +76,13 @@ namespace SistemaCaminosalDeporte.Negocio
 
                 var carpetaDatos = ObtenerCarpetaDatos();
                 Directory.CreateDirectory(carpetaDatos);
+                var nombresCopiados = new HashSet<string>(
+                    archivos.Select(Path.GetFileName), StringComparer.OrdinalIgnoreCase);
+                foreach (var archivoActual in Directory.GetFiles(carpetaDatos, "*.xml"))
+                {
+                    if (!nombresCopiados.Contains(Path.GetFileName(archivoActual)))
+                        File.Delete(archivoActual);
+                }
                 foreach (var archivo in archivos)
                     File.Copy(archivo, Path.Combine(carpetaDatos, Path.GetFileName(archivo)), true);
 
