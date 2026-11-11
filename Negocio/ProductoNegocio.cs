@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Globalization;
+using System.Text;
 using SistemaCaminosalDeporte.Datos;
 using SistemaCaminosalDeporte.Entidades;
 
@@ -42,12 +44,14 @@ namespace SistemaCaminosalDeporte.Negocio
             try
             {
                 var criterio = (texto ?? string.Empty).Trim();
+                var criterioNormalizado = Normalizar(criterio);
                 var productos = datos.ObtenerTodos()
                     .Where(x => (incluirInactivos || x.Activo) &&
-                        (criterio.Length == 0 ||
-                         Contiene(x.Nombre, criterio) ||
-                         Contiene(x.Talle, criterio) ||
-                         Contiene(x.Tipo, criterio)))
+                        (criterioNormalizado.Length == 0 ||
+                         Contiene(x.Nombre, criterioNormalizado) ||
+                         Contiene(x.Talle, criterioNormalizado) ||
+                         Contiene(x.Tipo, criterioNormalizado) ||
+                         Contiene(x.Color, criterioNormalizado)))
                     .ToList();
                 return Resultado<List<Producto>>.Ok(productos);
             }
@@ -146,8 +150,22 @@ namespace SistemaCaminosalDeporte.Negocio
 
         private static bool Contiene(string valor, string criterio)
         {
-            return !string.IsNullOrEmpty(valor) &&
-                valor.IndexOf(criterio, StringComparison.OrdinalIgnoreCase) >= 0;
+            return Normalizar(valor).IndexOf(criterio, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static string Normalizar(string valor)
+        {
+            if (string.IsNullOrEmpty(valor))
+                return string.Empty;
+
+            var normalizado = valor.Normalize(NormalizationForm.FormD);
+            var resultado = new StringBuilder(normalizado.Length);
+            foreach (var caracter in normalizado)
+            {
+                if (CharUnicodeInfo.GetUnicodeCategory(caracter) != UnicodeCategory.NonSpacingMark)
+                    resultado.Append(caracter);
+            }
+            return resultado.ToString().Normalize(NormalizationForm.FormC).ToLowerInvariant();
         }
     }
 }

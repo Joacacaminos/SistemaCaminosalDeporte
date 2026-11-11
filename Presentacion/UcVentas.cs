@@ -11,11 +11,11 @@ namespace SistemaCaminosalDeporte.Presentacion
     /// <summary>Pantalla de registro de ventas usando productos, stock y sesión reales.</summary>
     public class UcVentas : UserControl
     {
-        private static readonly string[] Categorias =
-            { "Todos", "Remera", "Short", "Calza", "Buzo", "Campera", "Conjunto", "Top", "Accesorio" };
-
         private FlowLayoutPanel flpProductos;
         private TextBox txtBuscar;
+        private Panel pnlBusqueda;
+        private FlowLayoutPanel flpCategorias;
+        private Label lblSinResultados;
         private DataGridView dgvCarrito;
         private DataGridView dgvUltimas;
         private Label lblSubtotal, lblDescMonto, lblRecargo, lblTotal;
@@ -78,53 +78,125 @@ namespace SistemaCaminosalDeporte.Presentacion
             });
             p.Controls.Add(pnlUlt);
 
-            var pnlBus = new Panel { Dock = DockStyle.Top, Height = 96 };
+            pnlBusqueda = new Panel { Dock = DockStyle.Top, AutoSize = true, MinimumSize = new Size(0, 96) };
             txtBuscar = Tema.Caja("Buscar producto por nombre, talle o categoría...");
             txtBuscar.SetBounds(0, 6, 520, 30);
             txtBuscar.TextChanged += (s, e) => CargarProductos();
-            pnlBus.Controls.Add(txtBuscar);
-
-            var flpChips = new FlowLayoutPanel
+            txtBuscar.KeyDown += (s, e) =>
             {
-                Location = new Point(0, 50),
-                Size = new Size(780, 40),
-                BackColor = Color.Transparent
-            };
-            foreach (var cat in Categorias)
-            {
-                var btnChip = Tema.Boton(cat, cat == "Todos");
-                btnChip.Size = new Size(98, 32);
-                btnChip.Margin = new Padding(0, 0, 8, 0);
-                btnChip.Tag = cat;
-                btnChip.Click += (s, e) =>
+                if (e.KeyCode == Keys.Enter)
                 {
-                    categoria = (string)((Button)s).Tag;
-                    foreach (var btnCategoria in btnCategorias) Tema.Marcar(btnCategoria, (string)btnCategoria.Tag == categoria);
+                    e.SuppressKeyPress = true;
                     CargarProductos();
-                };
-                btnCategorias.Add(btnChip);
-                flpChips.Controls.Add(btnChip);
+                }
+            };
+            pnlBusqueda.Controls.Add(txtBuscar);
+
+            flpCategorias = new FlowLayoutPanel
+            {
+                Location = new Point(0, 44),
+                Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                WrapContents = true,
+                FlowDirection = FlowDirection.LeftToRight,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0, 0, 8, 8)
+            };
+            pnlBusqueda.Controls.Add(flpCategorias);
+            p.Controls.Add(pnlBusqueda);
+
+            lblSinResultados = Tema.Etiqueta("Sin resultados", 12, true, Tema.Gris);
+            lblSinResultados.Dock = DockStyle.Top;
+            lblSinResultados.Height = 48;
+            lblSinResultados.TextAlign = ContentAlignment.MiddleCenter;
+            lblSinResultados.Visible = false;
+            flpProductos.Controls.Add(lblSinResultados);
+
+            flpProductos.Resize += (s, e) => AjustarAnchoCategorias();
+            p.Resize += (s, e) => AjustarAnchoCategorias();
+            pnlBusqueda.Resize += (s, e) => AjustarAnchoCategorias();
+            CargarCategorias();
+        }
+
+        private void CargarCategorias()
+        {
+            var resultado = productoNegocio.Listar();
+            var categorias = resultado.Exito
+                ? resultado.Valor.Where(x => x.Activo && !string.IsNullOrWhiteSpace(x.Tipo))
+                    .Select(x => x.Tipo.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList()
+                : new List<string>();
+
+            if (!categorias.Any(x => string.Equals(x, categoria, StringComparison.OrdinalIgnoreCase)))
+                categoria = "Todos";
+
+            flpCategorias.Controls.Clear();
+            btnCategorias.Clear();
+            AgregarCategoria("Todos");
+            foreach (var tipo in categorias)
+                AgregarCategoria(tipo);
+            AjustarAnchoCategorias();
+        }
+
+        private void AgregarCategoria(string nombre)
+        {
+            var btnChip = Tema.Boton(nombre, string.Equals(nombre, categoria, StringComparison.OrdinalIgnoreCase));
+            using (var grafico = CreateGraphics())
+            {
+                var ancho = TextRenderer.MeasureText(nombre, btnChip.Font).Width + 24;
+                btnChip.Width = Math.Max(72, ancho);
             }
-            pnlBus.Controls.Add(flpChips);
-            p.Controls.Add(pnlBus);
+            btnChip.Height = 32;
+            btnChip.Margin = new Padding(0, 0, 8, 8);
+            btnChip.Tag = nombre;
+            btnChip.Click += (s, e) =>
+            {
+                categoria = (string)((Button)s).Tag;
+                foreach (var btnCategoria in btnCategorias)
+                    Tema.Marcar(btnCategoria, string.Equals((string)btnCategoria.Tag, categoria, StringComparison.OrdinalIgnoreCase));
+                CargarProductos();
+            };
+            btnCategorias.Add(btnChip);
+            flpCategorias.Controls.Add(btnChip);
+        }
+
+        private void AjustarAnchoCategorias()
+        {
+            if (flpCategorias == null || pnlBusqueda == null)
+                return;
+            flpCategorias.Width = Math.Max(1, pnlBusqueda.ClientSize.Width);
+            flpCategorias.PerformLayout();
+            pnlBusqueda.Height = Math.Max(96, flpCategorias.Bottom + 8);
         }
 
         private void CargarProductos()
         {
             flpProductos.SuspendLayout();
             flpProductos.Controls.Clear();
+            lblSinResultados.Visible = false;
             var resultado = productoNegocio.Buscar(txtBuscar.Text);
             if (!resultado.Exito)
             {
+                lblSinResultados.Visible = true;
+                flpProductos.Controls.Add(lblSinResultados);
                 flpProductos.ResumeLayout();
                 return;
             }
 
-            foreach (var prod in resultado.Valor.Where(x => x.Activo && x.Stock > 0 &&
-                (categoria == "Todos" || string.Equals(x.Tipo, categoria, StringComparison.OrdinalIgnoreCase))))
+            var productos = resultado.Valor.Where(x => x.Activo && x.Stock > 0 &&
+                (categoria == "Todos" || string.Equals(x.Tipo, categoria, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            if (productos.Count == 0)
             {
-                flpProductos.Controls.Add(CrearTarjeta(prod));
+                lblSinResultados.Visible = true;
+                flpProductos.Controls.Add(lblSinResultados);
             }
+            else
+                foreach (var prod in productos)
+                    flpProductos.Controls.Add(CrearTarjeta(prod));
             flpProductos.ResumeLayout();
         }
 
