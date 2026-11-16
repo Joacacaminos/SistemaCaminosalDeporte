@@ -22,6 +22,8 @@ namespace SistemaCaminosalDeporte.Negocio
 
         public Resultado ExportarIngresosCsv(IEnumerable<IngresoReporte> ingresos, string rutaArchivo)
         {
+            if (!SesionActual.EsDueno)
+                return Resultado.Error("Solo el Dueño puede exportar reportes de ingresos.");
             if (ingresos == null)
                 return Resultado.Error("No hay datos de ingresos para exportar.");
             if (string.IsNullOrWhiteSpace(rutaArchivo))
@@ -68,6 +70,8 @@ namespace SistemaCaminosalDeporte.Negocio
         /// <summary>Devuelve los productos ordenados por cantidad vendida.</summary>
         public Resultado<List<ProductoVendidoReporte>> ProductosMasVendidos()
         {
+            if (!SesionActual.EsDueno)
+                return Resultado<List<ProductoVendidoReporte>>.Error("Solo el Dueño puede consultar reportes de ventas.");
             try
             {
                 var nombres = productos.ObtenerTodos().ToDictionary(x => x.idProducto, x => x.Nombre);
@@ -97,6 +101,8 @@ namespace SistemaCaminosalDeporte.Negocio
             Func<Venta, DateTime> agrupador,
             string nombrePeriodo)
         {
+            if (!SesionActual.EsDueno)
+                return Resultado<List<IngresoReporte>>.Error("Solo el Dueño puede consultar reportes de ingresos.");
             if (desde.Date > hasta.Date)
                 return Resultado<List<IngresoReporte>>.Error("La fecha inicial no puede ser posterior a la fecha final.");
 

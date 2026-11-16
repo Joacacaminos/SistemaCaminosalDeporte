@@ -64,7 +64,10 @@ namespace SistemaCaminosalDeporte.Presentacion
             var pnlUlt = new Panel { Dock = DockStyle.Bottom, Height = 200, Padding = new Padding(0, 8, 0, 0) };
             dgvUltimas = Tema.NuevaGrilla();
             dgvUltimas.Dock = DockStyle.Fill;
-            foreach (var c in new[] { "Fecha", "Comprobante", "Producto", "Cant.", "Total", "Medio de pago" })
+            var columnasUltimas = SesionActual.EsDueno
+                ? new[] { "Fecha", "Comprobante", "Producto", "Cant.", "Total", "Medio de pago" }
+                : new[] { "Fecha", "Comprobante", "Producto", "Cant.", "Medio de pago" };
+            foreach (var c in columnasUltimas)
                 dgvUltimas.Columns.Add(c, c);
             pnlUlt.Controls.Add(dgvUltimas);
             pnlUlt.Controls.Add(new Label
@@ -186,7 +189,7 @@ namespace SistemaCaminosalDeporte.Presentacion
                 return;
             }
 
-            var productos = resultado.Valor.Where(x => x.Activo && x.Stock > 0 &&
+            var productos = resultado.Valor.Where(x => x.Activo &&
                 (categoria == "Todos" || string.Equals(x.Tipo, categoria, StringComparison.OrdinalIgnoreCase)))
                 .ToList();
             if (productos.Count == 0)
@@ -250,13 +253,12 @@ namespace SistemaCaminosalDeporte.Presentacion
 
             foreach (var venta in resultado.Valor)
             {
-                dgvUltimas.Rows.Add(
-                    venta.Fecha.ToString("dd/MM - HH:mm"),
-                    venta.idVenta.ToString("000000"),
-                    venta.Producto,
-                    venta.Cantidad.ToString(),
-                    Tema.Dinero(venta.Total),
-                    venta.MedioPago);
+                if (SesionActual.EsDueno)
+                    dgvUltimas.Rows.Add(venta.Fecha.ToString("dd/MM - HH:mm"), venta.idVenta.ToString("000000"),
+                        venta.Producto, venta.Cantidad.ToString(), Tema.Dinero(venta.Total), venta.MedioPago);
+                else
+                    dgvUltimas.Rows.Add(venta.Fecha.ToString("dd/MM - HH:mm"), venta.idVenta.ToString("000000"),
+                        venta.Producto, venta.Cantidad.ToString(), venta.MedioPago);
             }
         }
 
@@ -314,6 +316,7 @@ namespace SistemaCaminosalDeporte.Presentacion
             };
             cmbDescuento.Items.AddRange(new object[] { "0%", "5%", "10%", "15%" });
             cmbDescuento.SelectedIndex = 0;
+            cmbDescuento.Enabled = SesionActual.EsDueno;
             cmbDescuento.SelectedIndexChanged += (s, e) => Recalcular();
             pie.Controls.Add(cmbDescuento);
             lblDescMonto = Der(38, 11, false, Tema.Texto);
@@ -464,7 +467,9 @@ namespace SistemaCaminosalDeporte.Presentacion
         private void Recalcular()
         {
             decimal sub = Subtotal();
-            int pct = int.Parse(((string)cmbDescuento.SelectedItem).TrimEnd('%'));
+            int pct = SesionActual.EsDueno
+                ? int.Parse(((string)cmbDescuento.SelectedItem).TrimEnd('%'))
+                : 0;
             var pago = ventaNegocio.CalcularPago(sub, medioPago, cuotaPlan, pct);
             lblSubtotal.Text = Tema.Dinero(pago.Subtotal);
             lblDescMonto.Text = Tema.Dinero(pago.Descuento);

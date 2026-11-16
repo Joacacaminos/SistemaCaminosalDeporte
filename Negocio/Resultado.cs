@@ -33,6 +33,8 @@ namespace SistemaCaminosalDeporte.Negocio
         /// <summary>Copia todos los XML a una subcarpeta con fecha y hora.</summary>
         public Resultado<string> CrearCopia(string carpetaDestino)
         {
+            if (!SesionActual.EsDueno)
+                return Resultado<string>.Error("Solo el Dueño puede crear copias de seguridad.");
             if (string.IsNullOrWhiteSpace(carpetaDestino))
                 return Resultado<string>.Error("La carpeta de destino es obligatoria.");
 
@@ -65,6 +67,8 @@ namespace SistemaCaminosalDeporte.Negocio
         /// <summary>Reemplaza los XML actuales por los contenidos de una copia.</summary>
         public Resultado RestaurarCopia(string carpetaCopia)
         {
+            if (!SesionActual.EsDueno)
+                return Resultado.Error("Solo el Dueño puede restaurar copias de seguridad.");
             if (string.IsNullOrWhiteSpace(carpetaCopia) || !Directory.Exists(carpetaCopia))
                 return Resultado.Error("La carpeta de copia no existe.");
 

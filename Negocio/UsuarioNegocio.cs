@@ -24,6 +24,8 @@ namespace SistemaCaminosalDeporte.Negocio
 
         public Resultado<System.Collections.Generic.List<Usuario>> Listar(bool incluirInactivos = false)
         {
+            if (!SesionActual.EsDueno)
+                return Resultado<System.Collections.Generic.List<Usuario>>.Error("Solo el Dueño puede consultar los usuarios.");
             try
             {
                 var usuarios = datos.ObtenerTodos();
@@ -66,12 +68,15 @@ namespace SistemaCaminosalDeporte.Negocio
         /// <summary>Crea un usuario activo almacenando la contraseña como SHA-256.</summary>
         public Resultado<Usuario> Alta(string nombre, string nombreUsuario, string contraseña, string rol)
         {
+            var permiso = ValidarDueno();
+            if (!permiso.Exito)
+                return Resultado<Usuario>.Error(permiso.Mensaje);
             if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(nombreUsuario))
                 return Resultado<Usuario>.Error("Nombre y usuario son obligatorios.");
             if (string.IsNullOrEmpty(contraseña))
                 return Resultado<Usuario>.Error("La contraseña es obligatoria.");
             if (!RolValido(rol))
-                return Resultado<Usuario>.Error("El rol debe ser Dueño, Empleado o Administrador.");
+                return Resultado<Usuario>.Error("El rol debe ser Dueño o Empleado.");
 
             try
             {
@@ -97,18 +102,25 @@ namespace SistemaCaminosalDeporte.Negocio
 
         public Resultado<Usuario> Editar(int idUsuario, string nombre, string nombreUsuario, string rol, string contraseña = null)
         {
+            var permiso = ValidarDueno();
+            if (!permiso.Exito)
+                return Resultado<Usuario>.Error(permiso.Mensaje);
             if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(nombreUsuario))
                 return Resultado<Usuario>.Error("Nombre y usuario son obligatorios.");
             if (string.IsNullOrEmpty(contraseña))
                 return Resultado<Usuario>.Error("La contraseña no puede quedar vacía.");
             if (!RolValido(rol))
-                return Resultado<Usuario>.Error("El rol debe ser Dueño, Empleado o Administrador.");
+                return Resultado<Usuario>.Error("El rol debe ser Dueño o Empleado.");
 
             try
             {
                 var usuario = datos.ObtenerPorId(idUsuario);
                 if (usuario == null)
                     return Resultado<Usuario>.Error("No se encontró el usuario.");
+
+                if (usuario.Rol == SesionActual.RolDueno && rol == SesionActual.RolEmpleado &&
+                    usuario.Activo && datos.ObtenerTodos().Count(x => x.Activo && x.Rol == SesionActual.RolDueno) <= 1)
+                    return Resultado<Usuario>.Error("No se puede pasar a Empleado al último Dueño activo.");
 
                 var duplicado = datos.ObtenerTodos().Any(x =>
                     x.idUsuario != idUsuario &&
@@ -132,6 +144,9 @@ namespace SistemaCaminosalDeporte.Negocio
         /// <summary>Desactiva un usuario salvo que sea el de la sesión actual.</summary>
         public Resultado Desactivar(int idUsuario)
         {
+            var permiso = ValidarDueno();
+            if (!permiso.Exito)
+                return permiso;
             if (SesionActual.Usuario != null && SesionActual.Usuario.idUsuario == idUsuario)
                 return Resultado.Error("No se puede desactivar el usuario que tiene la sesión abierta.");
 
@@ -140,6 +155,10 @@ namespace SistemaCaminosalDeporte.Negocio
                 var usuario = datos.ObtenerPorId(idUsuario);
                 if (usuario == null)
                     return Resultado.Error("No se encontró el usuario.");
+
+                if (usuario.Rol == SesionActual.RolDueno &&
+                    datos.ObtenerTodos().Count(x => x.Activo && x.Rol == SesionActual.RolDueno) <= 1)
+                    return Resultado.Error("No se puede desactivar al último Dueño activo.");
 
                 usuario.Activo = false;
                 datos.Guardar();
@@ -153,7 +172,14 @@ namespace SistemaCaminosalDeporte.Negocio
 
         private static bool RolValido(string rol)
         {
-            return rol == "Dueño" || rol == "Empleado" || rol == "Administrador";
+            return rol == SesionActual.RolDueno || rol == SesionActual.RolEmpleado;
+        }
+
+        private static Resultado ValidarDueno()
+        {
+            return SesionActual.EsDueno
+                ? Resultado.Ok()
+                : Resultado.Error("Solo el Dueño puede realizar esta operación.");
         }
 
         internal static string CalcularSha256(string texto)

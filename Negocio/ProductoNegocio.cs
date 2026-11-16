@@ -64,6 +64,8 @@ namespace SistemaCaminosalDeporte.Negocio
         /// <summary>Valida y registra un producto nuevo.</summary>
         public Resultado<Producto> Alta(Producto producto)
         {
+            if (!SesionActual.EsDueno)
+                return Resultado<Producto>.Error("Solo el Dueño puede crear productos.");
             var validacion = Validar(producto);
             if (!validacion.Exito)
                 return Resultado<Producto>.Error(validacion.Mensaje);
@@ -83,6 +85,8 @@ namespace SistemaCaminosalDeporte.Negocio
         /// <summary>Actualiza los datos de un producto existente.</summary>
         public Resultado<Producto> Modificar(Producto producto)
         {
+            if (!SesionActual.EsDueno)
+                return Resultado<Producto>.Error("Solo el Dueño puede modificar productos.");
             var validacion = Validar(producto);
             if (!validacion.Exito)
                 return Resultado<Producto>.Error(validacion.Mensaje);
@@ -111,6 +115,8 @@ namespace SistemaCaminosalDeporte.Negocio
         /// <summary>Desactiva un producto sin eliminarlo del XML.</summary>
         public Resultado BajaLogica(int idProducto)
         {
+            if (!SesionActual.EsDueno)
+                return Resultado.Error("Solo el Dueño puede eliminar productos.");
             try
             {
                 var producto = datos.ObtenerPorId(idProducto);

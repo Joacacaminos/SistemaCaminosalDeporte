@@ -16,6 +16,7 @@ namespace SistemaCaminosalDeporte.Datos
                 (usuario, id) => usuario.idUsuario = id,
                 CrearUsuariosIniciales())
         {
+            MigrarRolesAdministrador();
         }
 
         private static IEnumerable<Usuario> CrearUsuariosIniciales()
@@ -41,16 +42,23 @@ namespace SistemaCaminosalDeporte.Datos
                     Rol = "Empleado",
                     Activo = true
                 },
-                new Usuario
-                {
-                    idUsuario = 3,
-                    Nombre = "Administrador del sistema",
-                    NombreUsuario = "administrador",
-                    ContraseñaHash = contraseñaHash,
-                    Rol = "Administrador",
-                    Activo = true
-                }
             };
+        }
+
+        private void MigrarRolesAdministrador()
+        {
+            var usuarios = ObtenerTodos();
+            var modificados = false;
+            foreach (var usuario in usuarios)
+            {
+                if (string.Equals(usuario.Rol, "Administrador", StringComparison.OrdinalIgnoreCase))
+                {
+                    usuario.Rol = "Dueño";
+                    modificados = true;
+                }
+            }
+            if (modificados)
+                ReemplazarTodos(usuarios);
         }
 
         private static string CalcularSha256(string texto)

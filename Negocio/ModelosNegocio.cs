@@ -41,4 +41,17 @@ namespace SistemaCaminosalDeporte.Negocio
         public string MedioPago { get; set; }
         public string CuotaPlan { get; set; }
     }
+
+    public class MovimientoStockHistorial
+    {
+        public DateTime Fecha { get; set; }
+        public string Producto { get; set; }
+        public string Talle { get; set; }
+        public string Tipo { get; set; }
+        public int Cantidad { get; set; }
+        public string Motivo { get; set; }
+        public string Observacion { get; set; }
+        public string Usuario { get; set; }
+        public string NumeroVenta { get; set; }
+    }
 }

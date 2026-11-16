@@ -10,5 +10,8 @@ namespace SistemaCaminosalDeporte.Entidades
         public int Cantidad { get; set; }
         public DateTime Fecha { get; set; }
         public int idUsuario { get; set; }
+        public string Motivo { get; set; }
+        public string Observacion { get; set; }
+        public int? IdVenta { get; set; }
     }
 }

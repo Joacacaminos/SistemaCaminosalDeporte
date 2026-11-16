@@ -13,6 +13,8 @@ namespace SistemaCaminosalDeporte.Negocio
 
         public PagoCalculado CalcularPago(decimal subtotal, string medioPago, string cuotaPlan, decimal porcentajeDescuento)
         {
+            if (!SesionActual.EsDueno)
+                porcentajeDescuento = 0m;
             var descuento = subtotal * porcentajeDescuento / 100m;
             var baseParaRecargo = subtotal - descuento;
             var recargo = medioPago == "Tarjeta" ? baseParaRecargo * RecargoTarjetaPorcentaje : 0m;
@@ -27,6 +29,8 @@ namespace SistemaCaminosalDeporte.Negocio
 
         public Resultado<List<UltimaVenta>> VentasDelPeriodo(DateTime desde, DateTime hasta)
         {
+            if (!SesionActual.EsDueno)
+                return Resultado<List<UltimaVenta>>.Error("Solo el Dueño puede consultar ventas por período.");
             if (desde.Date > hasta.Date)
                 return Resultado<List<UltimaVenta>>.Error("La fecha inicial no puede ser posterior a la fecha final.");
 
@@ -53,8 +57,9 @@ namespace SistemaCaminosalDeporte.Negocio
         {
             if (idVenta <= 0)
                 return Resultado.Error("La venta seleccionada no es válida.");
-            if (usuario == null || (usuario.Rol != "Dueño" && usuario.Rol != "Administrador"))
-                return Resultado.Error("Solo los roles Dueño y Administrador pueden eliminar ventas.");
+            if (!SesionActual.EsDueno || usuario == null || usuario.Rol != SesionActual.RolDueno ||
+                SesionActual.Usuario.idUsuario != usuario.idUsuario)
+                return Resultado.Error("Solo el Dueño puede eliminar ventas.");
 
             var usuarioActual = usuarios.ObtenerPorId(usuario.idUsuario);
             if (usuarioActual == null || !usuarioActual.Activo)
@@ -90,10 +95,12 @@ namespace SistemaCaminosalDeporte.Negocio
                     movimientos.Agregar(new MovimientoStock
                     {
                         idProducto = detalle.idProducto,
-                        Tipo = "Entrada - Eliminación de venta",
+                        Tipo = "Entrada",
                         Cantidad = detalle.Cantidad,
                         Fecha = DateTime.Now,
-                        idUsuario = usuario.idUsuario
+                        idUsuario = usuario.idUsuario,
+                        Motivo = "Eliminación de venta",
+                        IdVenta = idVenta
                     });
                 }
 
@@ -256,7 +263,9 @@ namespace SistemaCaminosalDeporte.Negocio
                         Tipo = "Salida",
                         Cantidad = linea.Cantidad,
                         Fecha = venta.Fecha,
-                        idUsuario = usuario.idUsuario
+                        idUsuario = usuario.idUsuario,
+                        Motivo = "Venta",
+                        IdVenta = venta.idVenta
                     });
                 }
 
@@ -306,7 +315,7 @@ namespace SistemaCaminosalDeporte.Negocio
                                 ? "Sin detalle"
                                 : nombresProductos[0] + (nombresProductos.Count > 1 ? " y otros" : string.Empty),
                             Cantidad = detallesVenta.Sum(x => x.Cantidad),
-                            Total = venta.MontoTotal,
+                            Total = SesionActual.EsDueno ? venta.MontoTotal : 0m,
                             MedioPago = ObtenerDescripcionMedioPago(venta),
                             CuotaPlan = venta.CuotaPlan
                         };
@@ -342,6 +351,11 @@ namespace SistemaCaminosalDeporte.Negocio
                     return Resultado.Error("El porcentaje de descuento debe estar entre 0 y 100.");
                 if (usuario == null || usuario.idUsuario <= 0 || !usuario.Activo)
                     return Resultado.Error("El usuario que registra la venta no es válido o está inactivo.");
+                if (!SesionActual.EstaIniciada || SesionActual.Usuario.idUsuario != usuario.idUsuario ||
+                    SesionActual.Usuario.Rol != usuario.Rol)
+                    return Resultado.Error("El usuario de la venta no coincide con la sesión activa.");
+                if (!SesionActual.EsDueno && porcentajeDescuento != 0)
+                    return Resultado.Error("El Empleado no puede aplicar descuentos.");
 
                 var usuarioActual = usuarios.ObtenerPorId(usuario.idUsuario);
                 if (usuarioActual == null || !usuarioActual.Activo)
@@ -451,7 +465,7 @@ namespace SistemaCaminosalDeporte.Negocio
 
         private static MovimientoStock ClonarMovimiento(MovimientoStock x)
         {
-            return new MovimientoStock { idMovimiento = x.idMovimiento, idProducto = x.idProducto, Tipo = x.Tipo, Cantidad = x.Cantidad, Fecha = x.Fecha, idUsuario = x.idUsuario };
+            return new MovimientoStock { idMovimiento = x.idMovimiento, idProducto = x.idProducto, Tipo = x.Tipo, Cantidad = x.Cantidad, Fecha = x.Fecha, idUsuario = x.idUsuario, Motivo = x.Motivo, Observacion = x.Observacion, IdVenta = x.IdVenta };
         }
     }
 }

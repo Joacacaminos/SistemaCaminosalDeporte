@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
+using System.IO;
 using System.Windows.Forms;
 using System.Linq;
 using SistemaCaminosalDeporte.Entidades;
@@ -29,8 +30,9 @@ namespace SistemaCaminosalDeporte.Presentacion
             this.rol = rol;
 
             Text = "Caminos Ropa Deportiva - Sistema de gestión";
-            ClientSize = new Size(1280, 760);
-            MinimumSize = new Size(1100, 680);
+            AutoScaleMode = AutoScaleMode.Dpi;
+            ClientSize = new Size(1280, 700);
+            MinimumSize = new Size(980, 600);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Tema.Fondo;
 
@@ -40,7 +42,7 @@ namespace SistemaCaminosalDeporte.Presentacion
             Controls.Add(ConstruirEncabezado());
             Controls.Add(ConstruirMenu());
 
-            Navegar("Inicio");
+            Navegar(SesionActual.EsEmpleado ? "Ventas" : "Inicio");
         }
 
     }
@@ -61,9 +63,12 @@ internal sealed class UcProductosReales : UserControl
         Controls.Add(dgvProductos);
 
         var pnlAcciones = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.Transparent };
-        AgregarBoton(pnlAcciones, "Nuevo producto", true, NuevoProducto);
-        AgregarBoton(pnlAcciones, "Editar", false, EditarProducto);
-        AgregarBoton(pnlAcciones, "Eliminar", false, EliminarProducto);
+            if (SesionActual.EsDueno)
+            {
+                AgregarBoton(pnlAcciones, "Nuevo producto", true, NuevoProducto);
+                AgregarBoton(pnlAcciones, "Editar", false, EditarProducto);
+                AgregarBoton(pnlAcciones, "Eliminar", false, EliminarProducto);
+            }
         Controls.Add(pnlAcciones);
         CargarProductos();
     }
@@ -205,8 +210,13 @@ internal sealed class UcStockReal : UserControl
         Controls.Add(dgvStock);
 
         var pnlAcciones = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 52, BackColor = Color.Transparent };
-        AgregarBoton(pnlAcciones, "Registrar ingreso de mercadería", true, IngresarMercaderia);
-        AgregarBoton(pnlAcciones, "Ajustar cantidad", false, AjustarCantidad);
+        if (SesionActual.EsDueno)
+        {
+            AgregarBoton(pnlAcciones, "Registrar ingreso de mercadería", true, IngresarMercaderia);
+            AgregarBoton(pnlAcciones, "Registrar salida", false, RegistrarSalida);
+            AgregarBoton(pnlAcciones, "Ajustar cantidad", false, AjustarCantidad);
+            AgregarBoton(pnlAcciones, "Historial de movimientos", false, VerHistorial);
+        }
         Controls.Add(pnlAcciones);
 
         var resumen = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 104, BackColor = Color.Transparent };
@@ -291,7 +301,17 @@ internal sealed class UcStockReal : UserControl
 
     private void IngresarMercaderia(object sender, EventArgs e)
     {
-        var resultado = MostrarOperacion("Registrar ingreso de mercadería", "Cantidad a ingresar", false);
+        var resultado = MostrarOperacion("Registrar ingreso de mercadería", "Cantidad a ingresar", false, null);
+        if (resultado == null)
+            return;
+        MostrarResultado(resultado, "Stock");
+        if (resultado.Exito)
+            CargarStock();
+    }
+
+    private void RegistrarSalida(object sender, EventArgs e)
+    {
+        var resultado = MostrarOperacion("Registrar salida", "Cantidad a retirar", false, null, true);
         if (resultado == null)
             return;
         MostrarResultado(resultado, "Stock");
@@ -317,7 +337,8 @@ internal sealed class UcStockReal : UserControl
             CargarStock();
     }
 
-    private Resultado<Producto> MostrarOperacion(string titulo, string etiqueta, bool ajuste, Producto seleccionado = null)
+    private Resultado<Producto> MostrarOperacion(string titulo, string etiqueta, bool ajuste,
+        Producto seleccionado = null, bool salida = false)
     {
         var disponibles = productos.Listar();
         if (!disponibles.Exito)
@@ -326,17 +347,29 @@ internal sealed class UcStockReal : UserControl
             return null;
         }
 
-        using (var formulario = new FrmOperacionStock(disponibles.Valor, etiqueta, seleccionado))
+        using (var formulario = new FrmOperacionStock(disponibles.Valor, etiqueta, seleccionado,
+            ajuste, salida))
         {
             if (formulario.ShowDialog(FindForm()) != DialogResult.OK)
                 return null;
             if (SesionActual.Usuario == null)
                 return Resultado<Producto>.Error("No hay una sesión de usuario activa.");
 
-            return ajuste
-                ? stock.AjustarCantidad(formulario.IdProducto, formulario.Cantidad, SesionActual.Usuario.idUsuario)
-                : stock.IngresarMercaderia(formulario.IdProducto, formulario.Cantidad, SesionActual.Usuario.idUsuario);
+            if (ajuste)
+                return stock.AjustarCantidad(formulario.IdProducto, formulario.Cantidad,
+                    SesionActual.Usuario.idUsuario, formulario.Motivo, formulario.Observacion);
+            return salida
+                ? stock.RegistrarSalida(formulario.IdProducto, formulario.Cantidad,
+                    SesionActual.Usuario.idUsuario, formulario.Motivo, formulario.Observacion)
+                : stock.IngresarMercaderia(formulario.IdProducto, formulario.Cantidad,
+                    SesionActual.Usuario.idUsuario, formulario.Motivo, formulario.Observacion);
         }
+    }
+
+    private void VerHistorial(object sender, EventArgs e)
+    {
+        using (var formulario = new FrmHistorialStock(stock))
+            formulario.ShowDialog(FindForm());
     }
 
     private static void MostrarResultado(Resultado<Producto> resultado, string titulo)
@@ -453,15 +486,26 @@ internal sealed class FrmOperacionStock : Form
     private readonly ComboBox cmbProducto = new ComboBox();
     private readonly NumericUpDown nudCantidad = new NumericUpDown();
     private readonly bool productoFijado;
+    private readonly bool ajuste;
+    private readonly bool salida;
+    private readonly ComboBox cmbMotivo = new ComboBox();
+    private readonly TextBox txtObservacion = Tema.Caja("Observación");
 
     public int IdProducto { get; private set; }
     public int Cantidad { get { return (int)nudCantidad.Value; } }
+    public string Motivo { get { return cmbMotivo.SelectedItem == null ? string.Empty : cmbMotivo.SelectedItem.ToString(); } }
+    public string Observacion { get { return txtObservacion.Text.Trim(); } }
 
-    public FrmOperacionStock(List<Producto> productos, string etiqueta, Producto seleccionado)
+    public FrmOperacionStock(List<Producto> productos, string etiqueta, Producto seleccionado,
+        bool ajuste, bool salida)
     {
         productoFijado = seleccionado != null;
+        this.ajuste = ajuste;
+        this.salida = salida;
         Text = etiqueta;
-        ClientSize = new Size(470, 190);
+        AutoScaleMode = AutoScaleMode.Dpi;
+        ClientSize = new Size(470, 310);
+        MinimumSize = new Size(470, 310);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -489,6 +533,27 @@ internal sealed class FrmOperacionStock : Form
         Controls.Add(lblCantidad);
         Controls.Add(nudCantidad);
 
+        var lblMotivo = Tema.Etiqueta("Motivo", 9.5f, false, Tema.Gris);
+        lblMotivo.SetBounds(20, 116, 150, 22);
+        cmbMotivo.SetBounds(180, 113, 270, 28);
+        cmbMotivo.DropDownStyle = ComboBoxStyle.DropDownList;
+        cmbMotivo.BackColor = Tema.Tarjeta;
+        cmbMotivo.ForeColor = Tema.Texto;
+        cmbMotivo.Font = Tema.Fuente(10);
+        foreach (var motivo in (ajuste ? new[] { "Ajuste de inventario" } :
+            (salida ? StockNegocio.MotivosSalida : StockNegocio.MotivosEntrada)))
+            cmbMotivo.Items.Add(motivo);
+        cmbMotivo.SelectedIndex = 0;
+        Controls.Add(lblMotivo);
+        Controls.Add(cmbMotivo);
+
+        var lblObservacion = Tema.Etiqueta("Observación", 9.5f, false, Tema.Gris);
+        lblObservacion.SetBounds(20, 164, 150, 22);
+        txtObservacion.SetBounds(180, 161, 270, 55);
+        txtObservacion.Multiline = true;
+        Controls.Add(lblObservacion);
+        Controls.Add(txtObservacion);
+
         if (seleccionado != null)
         {
             cmbProducto.SelectedItem = productos.FirstOrDefault(x => x.idProducto == seleccionado.idProducto);
@@ -500,11 +565,11 @@ internal sealed class FrmOperacionStock : Form
 
         cmbProducto.Enabled = !productoFijado;
         var btnCancelar = Tema.Boton("Cancelar", false);
-        btnCancelar.SetBounds(250, 130, 95, 40);
+        btnCancelar.SetBounds(250, 250, 95, 40);
         btnCancelar.DialogResult = DialogResult.Cancel;
         Controls.Add(btnCancelar);
         var btnAceptar = Tema.Boton("Aceptar");
-        btnAceptar.SetBounds(355, 130, 95, 40);
+        btnAceptar.SetBounds(355, 250, 95, 40);
         btnAceptar.Click += Aceptar;
         Controls.Add(btnAceptar);
         AcceptButton = btnAceptar;
@@ -526,8 +591,135 @@ internal sealed class FrmOperacionStock : Form
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
+        if ((Motivo == "Robo o pérdida" || Motivo == "Rotura o defecto" ||
+            Motivo == "Ajuste de inventario") && string.IsNullOrWhiteSpace(Observacion))
+        {
+            MessageBox.Show("La observación es obligatoria para el motivo seleccionado.", "Stock",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
         DialogResult = DialogResult.OK;
         Close();
+    }
+}
+
+internal sealed class FrmHistorialStock : Form
+{
+    private readonly StockNegocio stock;
+    private readonly ComboBox cmbTipo = new ComboBox();
+    private readonly ComboBox cmbMotivo = new ComboBox();
+    private readonly DateTimePicker dtpDesde = new DateTimePicker();
+    private readonly DateTimePicker dtpHasta = new DateTimePicker();
+    private readonly DataGridView dgv = Tema.NuevaGrilla();
+    private List<MovimientoStockHistorial> historial = new List<MovimientoStockHistorial>();
+
+    public FrmHistorialStock(StockNegocio stock)
+    {
+        this.stock = stock;
+        Text = "Historial de movimientos";
+        AutoScaleMode = AutoScaleMode.Dpi;
+        var area = Screen.FromPoint(Cursor.Position).WorkingArea;
+        var ancho = Math.Min(1200, (int)(area.Width * 0.9));
+        var alto = Math.Min(720, (int)(area.Height * 0.9));
+        ClientSize = new Size(Math.Max(900, ancho), Math.Max(520, alto));
+        MinimumSize = new Size(760, 420);
+        StartPosition = FormStartPosition.CenterScreen;
+        FormBorderStyle = FormBorderStyle.Sizable;
+        MaximizeBox = true;
+        MinimizeBox = true;
+        BackColor = Tema.Fondo;
+
+        var filtros = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            WrapContents = true,
+            Padding = new Padding(12),
+            MinimumSize = new Size(0, 62),
+            BackColor = Tema.Panel
+        };
+        cmbTipo.Items.AddRange(new object[] { "Todos", "Entrada", "Salida" });
+        cmbTipo.SelectedIndex = 0;
+        cmbMotivo.Items.Add("Todos");
+        foreach (var motivo in StockNegocio.MotivosEntrada.Concat(StockNegocio.MotivosSalida).Distinct())
+            cmbMotivo.Items.Add(motivo);
+        cmbMotivo.Items.Add("Sin motivo registrado");
+        cmbMotivo.SelectedIndex = 0;
+        dtpDesde.Format = DateTimePickerFormat.Short;
+        dtpHasta.Format = DateTimePickerFormat.Short;
+        filtros.Controls.Add(new Label { Text = "Tipo", AutoSize = true, Padding = new Padding(0, 8, 4, 0) });
+        filtros.Controls.Add(cmbTipo);
+        filtros.Controls.Add(new Label { Text = "Motivo", AutoSize = true, Padding = new Padding(12, 8, 4, 0) });
+        filtros.Controls.Add(cmbMotivo);
+        filtros.Controls.Add(new Label { Text = "Desde", AutoSize = true, Padding = new Padding(12, 8, 4, 0) });
+        filtros.Controls.Add(dtpDesde);
+        filtros.Controls.Add(new Label { Text = "Hasta", AutoSize = true, Padding = new Padding(12, 8, 4, 0) });
+        filtros.Controls.Add(dtpHasta);
+        var btnFiltrar = Tema.Boton("Filtrar");
+        btnFiltrar.Click += delegate { Cargar(); };
+        filtros.Controls.Add(btnFiltrar);
+        var btnExportar = Tema.Boton("Exportar CSV", false);
+        btnExportar.Click += Exportar;
+        filtros.Controls.Add(btnExportar);
+        dgv.Dock = DockStyle.Fill;
+        dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+        dgv.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells;
+        dgv.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
+        dgv.ScrollBars = ScrollBars.Both;
+        Controls.Add(dgv);
+        Controls.Add(filtros);
+
+        foreach (var columna in new[] { "Fecha", "Producto", "Talle", "Tipo", "Cantidad", "Motivo", "Observación", "Usuario", "N° venta" })
+            dgv.Columns.Add(columna, columna);
+        ConfigurarColumna("Fecha", 115, 90);
+        ConfigurarColumna("Producto", 150, 100);
+        ConfigurarColumna("Talle", 80, 55);
+        ConfigurarColumna("Tipo", 85, 65);
+        ConfigurarColumna("Cantidad", 75, 65);
+        ConfigurarColumna("Motivo", 150, 110);
+        ConfigurarColumna("Observación", 280, 160);
+        ConfigurarColumna("Usuario", 130, 90);
+        ConfigurarColumna("N° venta", 90, 75);
+        Cargar();
+    }
+
+    private void ConfigurarColumna(string nombre, int ancho, int minimo)
+    {
+        var columna = dgv.Columns[nombre];
+        columna.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        columna.FillWeight = ancho;
+        columna.MinimumWidth = minimo;
+    }
+
+    private void Cargar()
+    {
+        var tipo = cmbTipo.SelectedIndex <= 0 ? null : cmbTipo.SelectedItem.ToString();
+        var motivo = cmbMotivo.SelectedIndex <= 0 ? null : cmbMotivo.SelectedItem.ToString();
+        var resultado = stock.Historial(tipo, motivo, dtpDesde.Value.Date, dtpHasta.Value.Date);
+        if (!resultado.Exito)
+        {
+            MessageBox.Show(resultado.Mensaje, "Historial", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        historial = resultado.Valor;
+        dgv.Rows.Clear();
+        foreach (var movimiento in historial)
+            dgv.Rows.Add(movimiento.Fecha.ToString("dd/MM/yyyy HH:mm"), movimiento.Producto,
+                movimiento.Talle, movimiento.Tipo, movimiento.Cantidad, movimiento.Motivo,
+                movimiento.Observacion, movimiento.Usuario, movimiento.NumeroVenta);
+    }
+
+    private void Exportar(object sender, EventArgs e)
+    {
+        using (var dialogo = new SaveFileDialog { Filter = "CSV (*.csv)|*.csv", FileName = "historial_movimientos.csv" })
+        {
+            if (dialogo.ShowDialog(this) != DialogResult.OK)
+                return;
+            var resultado = stock.ExportarHistorialCsv(historial, dialogo.FileName);
+            MessageBox.Show(resultado.Mensaje, "Historial", MessageBoxButtons.OK,
+                resultado.Exito ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+        }
     }
 }
 
@@ -536,8 +728,7 @@ internal static class VistaRealUtil
 {
     public static bool PuedeEliminarVentas()
     {
-        return SesionActual.Usuario != null &&
-            (SesionActual.Usuario.Rol == "Dueño" || SesionActual.Usuario.Rol == "Administrador");
+        return SesionActual.EsDueno;
     }
 
     public static Button Boton(string texto, bool primario, EventHandler accion)
@@ -566,6 +757,24 @@ internal static class VistaRealUtil
         return lblValor;
     }
 
+    public static Label Tarjeta(TableLayoutPanel fila, int columna, string titulo)
+    {
+        var pnlTarjeta = Tema.NuevaTarjeta();
+        pnlTarjeta.Dock = DockStyle.Fill;
+        pnlTarjeta.Margin = new Padding(0, 0, 8, 8);
+        var lblEtiqueta = Tema.Etiqueta(titulo, 9.5f, false, Tema.Gris);
+        lblEtiqueta.Dock = DockStyle.Top;
+        lblEtiqueta.Padding = new Padding(14, 12, 8, 0);
+        lblEtiqueta.AutoEllipsis = true;
+        var lblValor = Tema.Etiqueta("0", 18, true, Tema.Verde);
+        lblValor.Dock = DockStyle.Fill;
+        lblValor.Padding = new Padding(14, 4, 8, 8);
+        pnlTarjeta.Controls.Add(lblValor);
+        pnlTarjeta.Controls.Add(lblEtiqueta);
+        fila.Controls.Add(pnlTarjeta, columna, 0);
+        return lblValor;
+    }
+
     public static decimal Total(Resultado<List<IngresoReporte>> resultado)
     {
         return resultado != null && resultado.Exito && resultado.Valor != null
@@ -584,25 +793,50 @@ internal sealed class UcInicioReal : UserControl
     private readonly Label lblHoy;
     private readonly Label lblSemana;
     private readonly Label lblMes;
+    private readonly Label lblYear;
 
     public UcInicioReal()
     {
         BackColor = Tema.Fondo;
+        if (SesionActual.EsEmpleado)
+        {
+            Controls.Add(new Label
+            {
+                Text = "El Inicio no está disponible para el Empleado.",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = Tema.Gris,
+                Font = Tema.Fuente(12, true)
+            });
+            return;
+        }
         dgvUltimas.Dock = DockStyle.Fill;
         foreach (var columna in new[] { "Fecha", "Comprobante", "Producto", "Cant.", "Total", "Medio de pago" })
             dgvUltimas.Columns.Add(columna, columna);
         Controls.Add(dgvUltimas);
 
-        var pnlTarjetas = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 104, BackColor = Color.Transparent };
+        var pnlTarjetas = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            Height = 96,
+            BackColor = Color.Transparent,
+            ColumnCount = 5,
+            RowCount = 1,
+            Padding = new Padding(0, 0, 0, 8)
+        };
+        for (var columna = 0; columna < 5; columna++)
+            pnlTarjetas.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20f));
+        pnlTarjetas.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
         var hoy = DateTime.Today;
         var semana = hoy.AddDays(-((int)hoy.DayOfWeek + 6) % 7);
         var mes = new DateTime(hoy.Year, hoy.Month, 1);
-        lblHoy = VistaRealUtil.Tarjeta(pnlTarjetas, "Ventas de hoy");
-        lblSemana = VistaRealUtil.Tarjeta(pnlTarjetas, "Ventas de la semana");
-        lblMes = VistaRealUtil.Tarjeta(pnlTarjetas, "Ventas del mes");
+        lblHoy = VistaRealUtil.Tarjeta(pnlTarjetas, 0, "Ventas de hoy");
+        lblSemana = VistaRealUtil.Tarjeta(pnlTarjetas, 1, "Ventas de la semana");
+        lblMes = VistaRealUtil.Tarjeta(pnlTarjetas, 2, "Ventas del mes");
         var bajo = stock.ListarStockBajo(5);
-        VistaRealUtil.Tarjeta(pnlTarjetas, "Productos con stock bajo").Text =
+        VistaRealUtil.Tarjeta(pnlTarjetas, 4, "Productos con stock bajo").Text =
             bajo.Exito ? bajo.Valor.Count.ToString() : "0";
+        lblYear = VistaRealUtil.Tarjeta(pnlTarjetas, 3, "Ventas del año");
         Controls.Add(pnlTarjetas);
 
         if (VistaRealUtil.PuedeEliminarVentas())
@@ -620,6 +854,7 @@ internal sealed class UcInicioReal : UserControl
         lblHoy.Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorDia(hoy, hoy)));
         lblSemana.Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorSemana(semana, hoy)));
         lblMes.Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorMes(mes, hoy)));
+        lblYear.Text = Tema.Dinero(VistaRealUtil.Total(reportes.IngresosPorMes(new DateTime(hoy.Year, 1, 1), hoy)));
         dgvUltimas.Rows.Clear();
 
         var ultimas = ventas.UltimasVentas();
@@ -676,24 +911,45 @@ internal sealed class UcReportesReal : UserControl
     public UcReportesReal()
     {
         BackColor = Tema.Fondo;
-        dgvIngresos.Dock = DockStyle.Fill;
+        if (!SesionActual.EsDueno)
+        {
+            Controls.Add(new Label
+            {
+                Text = "Los reportes de ingresos están disponibles solo para el Dueño.",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = Tema.Gris,
+                Font = Tema.Fuente(12, true)
+            });
+            return;
+        }
         dgvIngresos.Columns.Add("Periodo", "Periodo");
         dgvIngresos.Columns.Add("Total", "Total");
         dgvIngresos.Columns.Add("Medios", "Medios de pago");
-        Controls.Add(dgvIngresos);
-
-        dgvVentasPeriodo.Dock = DockStyle.Bottom;
-        dgvVentasPeriodo.Height = 150;
         foreach (var columna in new[] { "Fecha", "Comprobante", "Producto", "Cant.", "Total", "Medio de pago" })
             dgvVentasPeriodo.Columns.Add(columna, columna);
-        Controls.Add(dgvVentasPeriodo);
-
-        dgvProductosVendidos.Dock = DockStyle.Bottom;
-        dgvProductosVendidos.Height = 180;
         dgvProductosVendidos.Columns.Add("Producto", "Producto");
         dgvProductosVendidos.Columns.Add("Cantidad", "Cantidad vendida");
         dgvProductosVendidos.Columns.Add("Total", "Ingresos");
-        Controls.Add(dgvProductosVendidos);
+
+        var pnlGrillas = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            BackColor = Color.Transparent,
+            Padding = new Padding(0, 4, 0, 0)
+        };
+        pnlGrillas.RowStyles.Add(new RowStyle(SizeType.Percent, 45f));
+        pnlGrillas.RowStyles.Add(new RowStyle(SizeType.Percent, 30f));
+        pnlGrillas.RowStyles.Add(new RowStyle(SizeType.Percent, 25f));
+        dgvIngresos.Dock = DockStyle.Fill;
+        dgvVentasPeriodo.Dock = DockStyle.Fill;
+        dgvProductosVendidos.Dock = DockStyle.Fill;
+        pnlGrillas.Controls.Add(dgvIngresos, 0, 0);
+        pnlGrillas.Controls.Add(dgvVentasPeriodo, 0, 1);
+        pnlGrillas.Controls.Add(dgvProductosVendidos, 0, 2);
+        Controls.Add(pnlGrillas);
 
         var pnlTarjetas = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 104, BackColor = Color.Transparent };
         lblTotal = VistaRealUtil.Tarjeta(pnlTarjetas, "Total del período");
@@ -914,7 +1170,9 @@ internal sealed class FrmUsuarioModal : Form
         editar = usuario != null;
         IdUsuario = usuario == null ? 0 : usuario.idUsuario;
         Text = editar ? "Editar usuario" : "Nuevo usuario";
+        AutoScaleMode = AutoScaleMode.Dpi;
         ClientSize = new Size(450, 285);
+        MinimumSize = new Size(450, 285);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -927,7 +1185,7 @@ internal sealed class FrmUsuarioModal : Form
         lblRol.SetBounds(20, 164, 150, 22);
         cmbRol.SetBounds(180, 161, 240, 28);
         cmbRol.DropDownStyle = ComboBoxStyle.DropDownList;
-        cmbRol.Items.AddRange(new object[] { "Dueño", "Empleado", "Administrador" });
+        cmbRol.Items.AddRange(new object[] { "Dueño", "Empleado" });
         Controls.Add(lblRol);
         Controls.Add(cmbRol);
         if (usuario != null)
@@ -986,7 +1244,9 @@ internal sealed class UcConfiguracionReal : UserControl
     {
         BackColor = Tema.Fondo;
         var pnlTarjeta = Tema.NuevaTarjeta();
-        pnlTarjeta.SetBounds(0, 0, 620, 220);
+        pnlTarjeta.Dock = DockStyle.Top;
+        pnlTarjeta.Height = 220;
+        pnlTarjeta.MinimumSize = new Size(500, 220);
         var lblTitulo = Tema.Etiqueta("Copia de seguridad", 12, true);
         lblTitulo.Location = new Point(20, 16);
         var lblDetalle = Tema.Etiqueta("Copia y restaura los archivos XML del sistema.", 9, false, Tema.Gris);
@@ -1100,9 +1360,8 @@ public partial class FrmPrincipal
         /// <summary>Qué ve cada rol (ajustable según lo que defina el equipo).</summary>
         private bool Permitido(string seccion)
         {
-            if (rol == "Administrador") return true;
-            if (rol == "Dueño") return seccion != "Usuarios" && seccion != "Configuración";
-            return seccion == "Inicio" || seccion == "Ventas" || seccion == "Productos" || seccion == "Stock";
+            if (rol == SesionActual.RolDueno) return true;
+            return seccion == "Ventas" || seccion == "Productos" || seccion == "Stock";
         }
 
         // ---------------------------------------------------------- encabezado

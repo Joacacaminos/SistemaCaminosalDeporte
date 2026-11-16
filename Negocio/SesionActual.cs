@@ -4,9 +4,14 @@ namespace SistemaCaminosalDeporte.Negocio
 {
     public static class SesionActual
     {
+        public const string RolDueno = "Dueño";
+        public const string RolEmpleado = "Empleado";
+
         public static Usuario Usuario { get; private set; }
         public static string Rol { get; private set; }
         public static bool EstaIniciada { get { return Usuario != null; } }
+        public static bool EsDueno { get { return Usuario != null && Usuario.Rol == RolDueno; } }
+        public static bool EsEmpleado { get { return Usuario != null && Usuario.Rol == RolEmpleado; } }
 
         public static void Iniciar(Usuario usuario)
         {
